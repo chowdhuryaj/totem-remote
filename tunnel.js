@@ -52,16 +52,19 @@ export class TunnelHID extends EventTarget {
     const ch = prefix[1] ?? 0, id = prefix[2] ?? 0, echo = prefix.slice(3, 3 + echoBytes);
     return this._enqueue(() => this._send(prefix, (r) => r[1] === ch && r[2] === id && echo.every((b, i) => r[3 + i] === b), opts));
   }
-  async close() { try { await this.io.close?.(); } catch { /* link gone */ } }
+  async close() {
+    const p = this._pending;   // fail a request in flight now instead of waiting out its retries
+    if (p) { clearTimeout(p.timer); this._pending = null; p.reject(new TunnelError('closed', 'Tunnel closed')); }
+    try { await this.io.close?.(); } catch { /* link gone */ } }
 }
 
 /** Real transport over the connected remote's GATT service. Subscribes to notifications only now,
  * i.e. while the config window is open (the caller checks Status first). */
-export async function openBleTunnel(device) {
+export async function openBleTunnel(device, queue = (f) => f()) {
   const server = device.gatt.connected ? device.gatt : await device.gatt.connect();
   const svc = await server.getPrimaryService(SERVICE);
   const ch = await svc.getCharacteristic(TUNNEL_CHAR);
-  const io = { onFrame: () => {}, write: (b) => (ch.writeValueWithResponse || ch.writeValue).call(ch, b) };
+  const io = { onFrame: () => {}, write: (b) => queue(() => (ch.writeValueWithResponse || ch.writeValue).call(ch, b)) };
   const onValue = (e) => { const v = e.target.value; io.onFrame(new Uint8Array(v.buffer, v.byteOffset, v.byteLength)); };
   ch.addEventListener('characteristicvaluechanged', onValue);
   await ch.startNotifications();

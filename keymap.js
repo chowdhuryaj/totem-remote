@@ -13,6 +13,14 @@ const NS = 'http://www.w3.org/2000/svg';
 
 // Shares the remote's BluetoothDevice: closing Studio must not drop the remote's GATT link (GattPort.close() would).
 class SharedGattPort extends GattPort {
+  constructor(device, queue) { super(device); this.queue = queue; }
+  // Studio writes share the link with the app's own ops: route them through the app's GATT queue (the vendored
+  // port looks the write methods up on the characteristic at call time, so wrapping them here is enough).
+  async open() {
+    await super.open();
+    const ch = this._char, q = this.queue;
+    if (q) for (const k of ['writeValueWithResponse', 'writeValueWithoutResponse']) { const f = ch[k]; if (f) ch[k] = (b) => q(() => f.call(ch, b)); }
+  }
   async close() {
     this._unlisten();
     try { await this._char?.stopNotifications(); } catch { /* link gone */ }
@@ -20,7 +28,7 @@ class SharedGattPort extends GattPort {
   }
 }
 
-let deps = { getDevice: () => null, getStatus: () => null, isDemo: () => false };
+let deps = { queue: null, getDevice: () => null, getStatus: () => null, isDemo: () => false };
 const s = { client: null, keymap: null, behaviors: null, cat: null, layer: 0, unsaved: false, msg: '', busy: false };
 let cfgUntil = 0, cfgTimer = 0;
 
@@ -48,8 +56,8 @@ export function initKeymap(d) {
 export function keymapStatus(st) {
   if (st?.configOpen && !cfgUntil) cfgUntil = Date.now() + CONFIG_WINDOW_S * 1000;
   if (!st?.configOpen) cfgUntil = 0;
-  if (!cfgTimer) cfgTimer = setInterval(paintCfg, 1000);
-  paint();
+  if (!cfgTimer) cfgTimer = setInterval(() => { if ($('#km').open) paintCfg(); }, 1000);
+  if ($('#km').open) paint(); // the board is rebuilt on every paint: skip while the sheet is closed
 }
 /** The remote link went away. */
 export function keymapDown() { if (s.client) down('Remote disconnected'); }
@@ -77,7 +85,7 @@ async function connect() {
       const dev = deps.getDevice();
       if (!dev) throw new Error('Connect the remote first.');
       client = new StudioClient();
-      if (!(await client._attempt(new SharedGattPort(dev), null))) throw new Error('Studio did not answer. Is the config window open?');
+      if (!(await client._attempt(new SharedGattPort(dev, deps.queue), null))) throw new Error('Studio did not answer. Is the config window open?');
       if ((await client.getLockState()) === 0) throw new Error('Studio is locked. Press Phone Config Unlock on the keyboard.');
     }
     s.client = client;

@@ -22,7 +22,7 @@ export const SECTIONS = [
   { id: 'modes', title: 'Modes', need: 'never', note: 'Not built on the phone yet: modes are whole-config snapshots, which need the full export/import engine.' },
 ];
 
-let deps = { getDevice: () => null, getStatus: () => null, isDemo: () => false };
+let deps = { queue: null, getDevice: () => null, getStatus: () => null, isDemo: () => false };
 const st = { hid: null, flask: null, app: null, version: null, caps: null, section: 'holdtap', busy: false, msg: '', dirtyCh: new Map() };
 let epoch = 0;
 
@@ -39,7 +39,7 @@ export function initFlask(d) {
 }
 
 /** Called on every remote Status: the tunnel only exists while the config window is open. */
-export function flaskStatus(s) { if (st.flask && !deps.isDemo() && !(s?.hasConfig && s?.configOpen)) down('Config window closed'); else paint(); }
+export function flaskStatus(s) { if (st.flask && !deps.isDemo() && !(s?.hasConfig && s?.configOpen)) down('Config window closed'); else if ($('#fl').open) paint(); }
 export function flaskDown() { if (st.flask) down('Remote disconnected'); }
 
 async function down(msg) {
@@ -58,7 +58,7 @@ async function connect() {
       if (!dev) throw new Error('Connect the remote first.');
       if (!s?.hasConfig) throw new Error('This firmware has no Flask tunnel.');
       if (!s.configOpen) throw new Error('Press Phone Config Unlock on the keyboard.');
-      st.hid = await openBleTunnel(dev);
+      st.hid = await openBleTunnel(dev, deps.queue);
     }
     st.flask = new FlaskProto(st.hid); st.flask.line = 'zmk';
     st.version = await st.flask.handshake();
