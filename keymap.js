@@ -12,14 +12,14 @@ export const CONFIG_WINDOW_S = 300; // firmware default CONFIG_TOTEM_PHONE_REMOT
 const NS = 'http://www.w3.org/2000/svg';
 
 // Shares the remote's BluetoothDevice: closing Studio must not drop the remote's GATT link (GattPort.close() would).
-class SharedGattPort extends GattPort {
+export class SharedGattPort extends GattPort {
   constructor(device, queue) { super(device); this.queue = queue; }
   // Studio writes share the link with the app's own ops: route them through the app's GATT queue (the vendored
   // port looks the write methods up on the characteristic at call time, so wrapping them here is enough).
   async open() {
     await super.open();
     const ch = this._char, q = this.queue;
-    if (q) for (const k of ['writeValueWithResponse', 'writeValueWithoutResponse']) { const f = ch[k]; if (f) ch[k] = (b) => q(() => f.call(ch, b)); }
+    if (q) for (const k of ['writeValueWithResponse', 'writeValueWithoutResponse']) { const f = ch[k]; if (f && !f.queued) ch[k] = Object.assign((b) => q(() => f.call(ch, b)), { queued: true }); } // the characteristic object is shared by every Studio session on this link: wrap once
   }
   async close() {
     this._unlisten();

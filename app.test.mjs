@@ -129,3 +129,12 @@ test('M3: a hung op tears the link down; the next link is not blocked behind it'
   assert.equal(r.text(), 'ok');
   assert.equal(rafs.size, 1);
 });
+
+test('A2: failing text write is dropped after 3 tries; no retry loop', async () => {
+  const d = await connect(), r = spy(d); d.opts.fail = 1000;
+  type('abc');
+  await sleep(400);
+  assert.equal(r.tried.filter(([k]) => k === 'text').length, 3);
+  d.opts.fail = 0; await sleep(100);
+  assert.equal(r.tried.filter(([k]) => k === 'text').length, 3, 'stays dropped');
+});

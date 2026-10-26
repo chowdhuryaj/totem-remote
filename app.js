@@ -77,13 +77,14 @@ async function pump() {
       const it = fifo[0];
       if (it.t === 'text') {
         if (status && !status.hasText) { fifo.shift(); continue; }
+        if (status && !status.remoteEnabled) break; // dongle refuses input; resumes from onStatus
         if (textFree <= 0) break; // resumes from onStatus
         const n = Math.min(20, textFree, it.text.length);
         textFree -= n; // optimistic; the next Status corrects it
         const ok = await tx('text', P.encodeText(it.text.slice(0, n)));
         if (g0 !== gen) break;
-        if (!ok) break; // chunk stays queued; tx re-reads Status, which resumes the pump
-        it.text = it.text.slice(n);
+        if (!ok) { if ((it.fails = (it.fails || 0) + 1) >= 3) fifo.shift(); break; } // chunk stays queued; tx re-reads Status, which resumes the pump
+        it.fails = 0; it.text = it.text.slice(n);
         if (!it.text) fifo.shift();
       } else if (it.t === 'delay') { fifo.shift(); await sleep(it.ms); }
       else {
@@ -171,11 +172,14 @@ function afterConnect() {
 }
 
 async function connectBle() {
+  if (reconnecting) return;
   if (!navigator.bluetooth) return setState('No Web Bluetooth here. Use Chrome (desktop/Android) or Bluefy on iPhone.', 'err');
   try {
     // After a drop or "Reconnect failed" retry the saved device instead of showing the chooser again.
-    if (!(device && wasConnected && !userDisc)) device = await navigator.bluetooth.requestDevice({ filters: [{ namePrefix: 'Totem' }], optionalServices: [P.SERVICE, STUDIO_GATT_SERVICE] });
-    device.addEventListener('gattserverdisconnected', onGattDisc);
+    if (!(device && wasConnected && !userDisc)) {
+      device = await navigator.bluetooth.requestDevice({ filters: [{ namePrefix: 'Totem' }], optionalServices: [P.SERVICE, STUDIO_GATT_SERVICE] });
+      device.addEventListener('gattserverdisconnected', onGattDisc); // same function: a repeat add is ignored
+    }
     await openBle(device);
   } catch (e) { link = null; setState(String(e.message || e), 'err'); }
 }
@@ -188,7 +192,7 @@ async function reconnect(tries = 3) {
       try { await openBle(device); return; }
       catch (e) { link = null; await sleep(1500); }
     }
-    if (!link) setState('Reconnect failed. Tap Connect.', 'err');
+    if (!link) { device = null; setState('Reconnect failed. Tap Connect.', 'err'); } // next Connect opens the chooser
   } finally { reconnecting = false; }
 }
 
@@ -244,6 +248,7 @@ function renderStatus() {
 }
 $('#out').onclick = () => {
   const next = status?.output === 2 ? 1 : 2;
+  mods = 0; renderMods(); // the dongle releases held keys on an output change
   tx('control', P.control.output(next)).then(() => refreshStatus());
 };
 

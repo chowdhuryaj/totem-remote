@@ -57,3 +57,17 @@ test('key search finds keys and media keys', () => {
   assert.ok(K.searchKeys('enter').some((r) => r.entryId === 'key' && r.params.key === 0x28));
   assert.ok(K.searchKeys('volume up').some((r) => r.entryId === 'media-key' && r.params.code === 0xE9));
 });
+
+test('A1: two Studio sessions on one link wrap the characteristic once; a write still completes', async () => {
+  const { SharedGattPort } = await import('./keymap.js');
+  const wrote = [];
+  const ch = { properties: { write: true }, stopNotifications: async () => {}, startNotifications: async () => {}, addEventListener() {}, removeEventListener() {},
+    writeValueWithResponse: async (b) => { wrote.push(b); }, writeValueWithoutResponse: async () => {} };
+  const dev = { addEventListener() {}, removeEventListener() {}, gatt: { connected: true, getPrimaryService: async () => ({ getCharacteristic: async () => ch }) } };
+  let tail = Promise.resolve();
+  const queue = (fn) => { const p = tail.then(fn); tail = p.then(() => {}, () => {}); return p; }; // serializes like the app's runP
+  await new SharedGattPort(dev, queue).open();
+  await new SharedGattPort(dev, queue).open();
+  await Promise.race([ch.writeValueWithResponse(new Uint8Array([1])), new Promise((_, rej) => setTimeout(() => rej(new Error('deadlock')), 500))]);
+  assert.equal(wrote.length, 1);
+});
