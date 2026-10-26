@@ -39,9 +39,3 @@ export function asciiKey(c) {
   if ((i = SHIFTED.indexOf(c)) >= 0) return { usage: PLAIN_U[i], shift: true };
   return null;
 }
-
-const ct = (label, mods, usage, page = 7) => ({ label, steps: [{ t: 'key', mods, page, usage }] });
-export const DEFAULT_DECK = [
-  ct('Play / Pause', 0, 0xcd, 0xc), ct('Vol +', 0, 0xe9, 0xc), ct('Vol -', 0, 0xea, 0xc), ct('Mute', 0, 0xe2, 0xc),
-  ct('Cmd+C', 8, 6), ct('Cmd+V', 8, 0x19), ct('Cmd+Tab', 8, 0x2b), ct('Ctrl+C', 1, 6), ct('Ctrl+V', 1, 0x19),
-];

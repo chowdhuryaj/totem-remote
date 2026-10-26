@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0e0f12">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
 <title>Totem Remote</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -41,12 +44,19 @@
   </section>
 
   <section id="tab-deck" class="panel" hidden>
+    <div class="row"><select id="host"><option value="">Auto</option><option>Mac</option><option>Workstation</option></select><span id="hostname" class="grow"></span></div>
+    <div class="row" id="pages"></div>
     <div class="row">
       <button id="deck-edit">Edit</button>
       <button id="deck-add" hidden>+ Add</button>
       <button id="deck-json">JSON</button>
     </div>
     <div class="grid deck" id="deck"></div>
+  </section>
+
+  <section id="tab-gest" class="panel" hidden>
+    <div id="gesthost"></div>
+    <div class="grid" id="gest"></div>
   </section>
 
   <pre id="log" hidden></pre>
@@ -56,6 +66,7 @@
   <button data-tab="pad" class="on">Pad</button>
   <button data-tab="keys">Keys</button>
   <button data-tab="deck">Deck</button>
+  <button data-tab="gest">Gest</button>
 </nav>
 
 <dialog id="editor"></dialog>

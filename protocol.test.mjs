@@ -50,3 +50,35 @@ test('ascii to usage', () => {
   assert.deepEqual(asciiKey('!'), { usage: 0x1e, shift: true });
   assert.deepEqual(asciiKey('?'), { usage: 0x38, shift: true });
 });
+
+import { defaultConfig, cleanConfig, importAny, migrate, classifyMulti, classifyPinch, GESTURES, HOSTS } from './config.js';
+test('config defaults cover every gesture and host', () => {
+  const c = defaultConfig();
+  for (const h of HOSTS) for (const [k] of GESTURES) assert.ok(c.profiles[h].gestures[k].steps.length, h + k);
+  assert.deepEqual(c.profiles.Mac.gestures.swipe3L.steps[0], { t: 'key', mods: 1, page: 7, usage: 0x50 });
+  assert.deepEqual(c.profiles.Workstation.gestures.swipe3L.steps[0], { t: 'key', mods: 9, page: 7, usage: 0x50 });
+  assert.deepEqual(cleanConfig(JSON.parse(JSON.stringify(c))), c);
+});
+test('import: v2 round trip, old array, garbage', () => {
+  const c = defaultConfig();
+  assert.deepEqual(importAny(JSON.parse(JSON.stringify(c)), c, 'Mac'), c);
+  const old = [{ label: 'x', steps: [{ t: 'text', text: 'hié' }, { t: 'bogus' }] }];
+  const n = importAny(old, c, 'Workstation');
+  assert.deepEqual(n.profiles.Workstation.pages, [{ name: 'Imported', buttons: [{ label: 'x', steps: [{ t: 'text', text: 'hi' }] }] }]);
+  assert.deepEqual(n.profiles.Mac, c.profiles.Mac);
+  assert.deepEqual(migrate(old).profiles.Mac.pages[0].buttons, n.profiles.Workstation.pages[0].buttons);
+  assert.throws(() => importAny({ foo: 1 }, c, 'Mac'));
+});
+test('gesture classification', () => {
+  assert.equal(classifyMulti(3, -80, 5, 200), 'swipe3L');
+  assert.equal(classifyMulti(3, 80, 5, 200), 'swipe3R');
+  assert.equal(classifyMulti(3, 2, -90, 200), 'swipe3U');
+  assert.equal(classifyMulti(4, 0, 90, 200), 'swipe4D');
+  assert.equal(classifyMulti(4, 90, 0, 200), null);
+  assert.equal(classifyMulti(3, 3, 2, 120), 'tap3');
+  assert.equal(classifyMulti(3, 3, 2, 600), null);
+  assert.equal(classifyPinch(200, 100, 10), 'pinchIn');
+  assert.equal(classifyPinch(100, 200, 10), 'pinchOut');
+  assert.equal(classifyPinch(100, 110, 5), null);
+  assert.equal(classifyPinch(100, 160, 100), null);
+});
