@@ -1,6 +1,7 @@
 import * as P from './protocol.js';
 import { $, h } from './dom.js';
 import { initKeymap, keymapStatus, keymapDown, STUDIO_GATT_SERVICE } from './keymap.js';
+import { initFlask, flaskStatus, flaskDown } from './flask.js';
 import { KEY_GROUPS, asciiKey, keyLabel } from './keys.js';
 import { ICON_NAMES, icon } from './icons.js';
 import { GESTURES, COLORS, defaultConfig, cleanConfig, importAny, migrate, classifyMulti, classifyPinch } from './config.js';
@@ -46,7 +47,7 @@ const refreshStatus = () => link && run(async () => onStatus(await link.read()))
 function onStatus(bytes) {
   status = P.decodeStatus(bytes);
   textFree = status.textFree;
-  renderStatus(); keymapStatus(status); pump();
+  renderStatus(); keymapStatus(status); flaskStatus(status); pump();
 }
 
 // ---------- one FIFO for text, key taps, deck steps, gesture actions ----------
@@ -171,14 +172,14 @@ async function reconnect(tries = 3) {
 
 function onGattDisc() {
   if (!link || link.kind !== 'ble') return;
-  link = null; keymapDown(); stopLoops(); resetLocal(); unwake(); $('#connect').textContent = 'Connect';
+  link = null; keymapDown(); flaskDown(); stopLoops(); resetLocal(); unwake(); $('#connect').textContent = 'Connect';
   $('#statusbar').hidden = true; setState('Disconnected', 'err');
   if (wasConnected && !userDisc && document.visibilityState === 'visible') reconnect();
 }
 
 async function disconnect() {
   userDisc = true; wasConnected = false;
-  keymapDown();
+  keymapDown(); flaskDown();
   await releaseAll();
   link?.disconnect(); link = null; stopLoops(); unwake(); status = null;
   $('#connect').textContent = 'Connect'; $('#demo').textContent = 'Demo'; $('#statusbar').hidden = true;
@@ -238,7 +239,7 @@ async function releaseAll() {
 async function goHidden() {
   if (!link) return;
   const l = link;
-  if (l.kind === 'ble') keymapDown();
+  if (l.kind === 'ble') { keymapDown(); flaskDown(); }
   await releaseAll();
   unwake();
   if (l.kind === 'ble') { link = null; stopLoops(); l.disconnect(); }
@@ -500,7 +501,9 @@ $('#json-import').onclick = () => {
   catch (e) { $('#json-msg').textContent = 'Import failed: ' + e.message; }
 };
 renderDeck();
-initKeymap({ getDevice: () => (link?.kind === 'ble' ? device : null), getStatus: () => status, isDemo: () => link?.kind === 'demo' });
+const kdeps = { getDevice: () => (link?.kind === 'ble' ? device : null), getStatus: () => status, isDemo: () => link?.kind === 'demo' };
+initKeymap(kdeps);
+initFlask(kdeps);
 
 // ---------- bottom toolbar, sheets, expandable pad ----------
 $('#nb-keys').onclick = () => { $('#keys').hidden = !$('#keys').hidden; }; // in the layout flow: the deck shrinks, the pad stays visible

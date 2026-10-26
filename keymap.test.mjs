@@ -16,6 +16,8 @@ test('legends decode and board geometry is finite', async () => {
   for (const b of keymap.layers[0].bindings) { const l = K.legend(b); assert.equal(typeof l.main, 'string'); assert.ok(l.main.length); }
   const g = K.boardGeom();
   assert.equal(g.keys.length, 38);
+  const st = K.boardGeom(undefined, { stack: true });
+  assert.ok(st.box.h > g.box.h * 1.6 && st.box.w < g.box.w * 0.6, "stacked board is narrower and taller");
   assert.ok(Number.isFinite(g.box.w) && g.box.w > 1000 && g.box.h > 300);
 });
 

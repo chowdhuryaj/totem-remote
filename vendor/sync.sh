@@ -6,7 +6,7 @@ set -eu
 cd "$(dirname "$0")"
 REPO=/Users/aj/dev/Input/Flask-Svalboard/flask-web-unify
 SHA=$(git -C "$REPO" rev-parse "${1:-$(sed -n 's/^sha=//p' flask/SOURCE 2>/dev/null || echo a61e524)}")
-FILES="zmk-studio.js diag.js behavior-catalog.js zmk-keycodes.js keycodes.js zmk-totem-layout.js zmk-totem-default.js boards.js zmk.js zmk-endgame.js flaskproto.js svalboard-layout.js"
+FILES="zmk-studio.js diag.js behavior-catalog.js zmk-keycodes.js keycodes.js zmk-totem-layout.js zmk-totem-default.js boards.js zmk.js zmk-endgame.js flaskproto.js svalboard-layout.js zmk-holdtap-codec.js zmk-tapdance-codec.js zmk-tapdance-io.js zmk-combos-codec.js zmk-macros-codec.js zmk-autoshift-codec.js zmk-adaptive-codec.js zmk-csk-codec.js"
 mkdir -p flask
 { echo "repo=$REPO"; echo "sha=$SHA"; echo "files=$FILES"; } > flask/SOURCE.new
 for f in $FILES; do

@@ -80,8 +80,25 @@ svg.kb g{cursor:pointer}
 svg.kb .kr{fill:var(--card2);stroke:var(--card2)}svg.kb .kr.dim{fill:transparent;stroke:var(--card2)}svg.kb .kr.hold{fill:var(--blue-fill);stroke:var(--blue-fill)}
 svg.kb g:active .kr{fill:var(--acc)}
 svg.kb text{text-anchor:middle;fill:var(--fg);pointer-events:none;font-family:inherit}
-svg.kb .km{font-size:40px}svg.kb .kt{font-size:25px;fill:var(--mut)}svg.kb .kr.dim~.km{fill:var(--mut)}
+svg.kb .km{font-size:38px}svg.kb .kt{font-size:24px;fill:var(--mut)}svg.kb .kr.dim~.km{fill:var(--mut)}
 #pk-preview{font-weight:600;min-height:1.3em}
 #pk-params{display:flex;flex-direction:column;gap:8px}#pk-params .desc{font-size:13px;color:var(--mut)}
 #pk-list h4{margin:10px 0 4px;font-size:13px;color:var(--mut);font-weight:600}
 .chips{display:flex;flex-wrap:wrap;gap:6px}.chips button.small{min-height:40px}
+
+#fl-msg{font-size:13px;color:var(--mut);min-height:1.2em}
+#fl-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}#fl-tabs button{flex:none}
+#fl-body{display:flex;flex-direction:column;gap:8px}
+.card{background:var(--bg);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:8px}
+button.card{color:var(--fg);text-align:left;min-height:56px;align-items:flex-start}
+.btnrow span{font-size:13px;color:var(--mut)}
+.fl-list{display:flex;flex-direction:column;gap:8px}
+.frow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:space-between}.frow .fl{font-size:14px;color:var(--mut);min-width:84px}
+.sl{display:flex;align-items:center;gap:8px;flex:1;min-width:160px}.sl input{flex:1;min-width:0}.val{font-size:13px;min-width:56px;text-align:right;color:var(--fg)}
+.stp{display:flex;align-items:center;gap:8px}.stp .val{min-width:64px;text-align:center}
+.chips.row,.frow .chips{display:flex;flex-wrap:wrap;gap:6px}
+button.out{max-width:100%;overflow-wrap:anywhere;text-align:left;min-height:40px}
+.hint{font-size:13px;color:var(--mut);margin:0}
+details summary{font-size:13px;color:var(--mut);padding:4px 0}
+svg.kb.sm{max-height:46dvh}
+#fl h4{margin:6px 0 0;font-size:13px;color:var(--mut)}

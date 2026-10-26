@@ -61,6 +61,7 @@
 <nav>
   <button id="nb-keys">Keyboard</button>
   <button id="nb-km">Keymap</button>
+  <button id="nb-fl">Flask</button>
   <button id="nb-gest">Gestures</button>
   <button id="nb-set">Settings</button>
 </nav>
@@ -86,6 +87,17 @@
   <p id="pk-msg"></p>
   <input id="pk-search" type="search" placeholder="Search keys and behaviors" autocomplete="off" spellcheck="false">
   <div id="pk-list"></div>
+</dialog>
+
+<dialog id="fl" class="sheet tall">
+  <div class="row"><b class="grow">Flask</b><span id="fl-cfg" class="chip" hidden></span><span id="fl-unsaved" class="chip warn" hidden>unsaved</span><button id="fl-close" class="small">Close</button></div>
+  <div id="fl-msg"></div>
+  <div class="row"><button id="fl-connect" class="primary grow">Connect to keyboard</button></div>
+  <div id="fl-bar" hidden>
+    <div id="fl-tabs"></div>
+    <div class="row"><button id="fl-save" class="primary grow">Saved</button><button id="fl-reload" class="small">Reload</button></div>
+  </div>
+  <div id="fl-body"></div>
 </dialog>
 
 <dialog id="gests" class="sheet">

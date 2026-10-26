@@ -110,3 +110,10 @@ test('imported config: no prototype pollution, key usages clamped to the dongle 
   const [k7, k12] = c.profiles.Mac.pages[0].buttons[0].steps;
   assert.equal(k7.usage, 0xff); assert.equal(k12.usage, 0xfff);
 });
+
+test('status: config window bit4 and features bit6', () => {
+  const s = P.decodeStatus([1, 0x13, 0, 0, 2, 0x6f, 1, 0xff, 0xff]);
+  assert.equal(s.configOpen, true); assert.equal(s.hasConfig, true); assert.equal(s.pairingOpen, false);
+  assert.equal(P.decodeStatus([1, 3, 2, 0, 2, 0x2f, 1, 0x4e, 0xff]).configOpen, false);
+  assert.equal(P.TUNNEL_CHAR, '7e4e0007-5c1a-4b2e-9d3f-8a6b4c2d1e0f');
+});

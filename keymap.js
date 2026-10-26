@@ -4,10 +4,11 @@ import { $, h } from './dom.js';
 import { StudioClient, GattPort, STUDIO_GATT_SERVICE } from './vendor/flask/zmk-studio.js';
 import * as K from './keymap-core.js';
 import { DemoStudio } from './demo-studio.js';
+import { openPicker } from './picker.js';
 
 export { STUDIO_GATT_SERVICE };
-// Guess: the Status byte only says "config window open", not for how long. Replace when the firmware exposes it.
-export const CONFIG_WINDOW_S = 60;
+// The Status byte only says "config window open"; the length is the firmware's Kconfig default.
+export const CONFIG_WINDOW_S = 300; // firmware default CONFIG_TOTEM_PHONE_REMOTE_CONFIG_WINDOW_S
 const NS = 'http://www.w3.org/2000/svg';
 
 // Shares the remote's BluetoothDevice: closing Studio must not drop the remote's GATT link (GattPort.close() would).
@@ -40,10 +41,7 @@ export function initKeymap(d) {
   };
   $('#km-up').onclick = () => move(-1);
   $('#km-down').onclick = () => move(1);
-  $('#pk-cancel').onclick = () => $('#picker').close();
-  $('#pk-apply').onclick = applyPick;
-  $('#pk-search').oninput = () => { pk.term = $('#pk-search').value; drawList(); };
-  paint();
+    paint();
 }
 
 /** Called with every decoded remote Status. */
@@ -132,8 +130,11 @@ function paint() {
   $('#km-board').replaceChildren(on ? board() : h('span'));
 }
 
+// Estimated text width in key units (system font averages ~0.55 em per glyph).
+const squeeze = (t, str, size, avail) => { if (str.length * size * 0.55 > avail) { t.setAttribute('textLength', avail); t.setAttribute('lengthAdjust', 'spacingAndGlyphs'); } };
 function board() {
-  const { keys, box } = K.boardGeom();
+  const portrait = innerHeight >= innerWidth;
+  const { keys, box } = K.boardGeom(undefined, { stack: portrait });
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('viewBox', `${box.x} ${box.y} ${box.w} ${box.h}`);
   svg.setAttribute('class', 'kb');
@@ -142,108 +143,36 @@ function board() {
     const b = L.bindings[k.pos], lg = K.legend(b);
     const g = document.createElementNS(NS, 'g');
     g.dataset.pos = k.pos;
-    if (k.r) g.setAttribute('transform', `rotate(${k.r} ${k.cx} ${k.cy})`);
+    g.setAttribute('transform', `translate(${k.tx} ${k.ty})` + (k.r ? ` rotate(${k.r} ${k.cx} ${k.cy})` : ''));
     const dim = lg.main === '▽' || lg.main === '∅';
     const rect = document.createElementNS(NS, 'rect');
     for (const [a, v] of [['x', k.x + 4], ['y', k.y + 4], ['width', k.w - 8], ['height', k.h - 8], ['rx', 14], ['class', 'kr' + (dim ? ' dim' : '') + (lg.top ? ' hold' : '')]]) rect.setAttribute(a, v);
     g.append(rect);
-    const text = (cls, str, y) => { const t = document.createElementNS(NS, 'text'); t.setAttribute('x', k.x + k.w / 2); t.setAttribute('y', y); t.setAttribute('class', cls); t.textContent = str; return t; };
-    const main = lg.main.length > 6 ? lg.main.slice(0, 5) + '…' : lg.main;
-    if (lg.top) { const top = lg.top.replace(/^Mod-tap\s*/, '').replace(/^LT\s*/, '').trim() || lg.top;
-      g.append(text('kt', top.length > 7 ? top.slice(0, 6) + '…' : top, k.y + k.h * 0.34)); g.append(text('km', main, k.y + k.h * 0.74)); }
-    else g.append(text('km', main, k.y + k.h * 0.58));
-    g.addEventListener('click', () => openPicker(k.pos));
+    const text = (cls, str, y, size) => { const t = document.createElementNS(NS, 'text'); t.setAttribute('x', k.x + k.w / 2); t.setAttribute('y', y); t.setAttribute('class', cls); t.textContent = str; squeeze(t, str, size, k.w - 14); return t; };
+    const main = lg.main.length > 8 ? lg.main.slice(0, 7) + '…' : lg.main;
+    // Hold part: drop the variant tags (" · live", " · fast") that only matter in the picker.
+    const top = lg.top.replace(/^Mod-tap\s*/, '').replace(/^LT\s*/, '').replace(/ · .*$/, '').trim();
+    if (top) { g.append(text('kt', top, k.y + k.h * 0.3, 24)); g.append(text('km', main, k.y + k.h * 0.74, 38)); }
+    else g.append(text('km', main, k.y + k.h * 0.58, 38));
+    g.addEventListener('click', () => editKey(k.pos));
     svg.append(g);
   }
   return svg;
 }
 
-// ---------- binding picker ----------
-const pk = { pos: 0, entry: null, vals: {}, binding: null, term: '' };
-
-function openPicker(pos) {
-  const cur = layer().bindings[pos];
-  pk.pos = pos; pk.term = ''; $('#pk-search').value = ''; $('#pk-msg').textContent = '';
-  const { entry, vals } = K.entryOf(s.cat, cur);
-  pk.entry = entry; pk.vals = vals; pk.binding = null;
-  $('#pk-title').textContent = `${K.layerLabel(layer().name, s.layer)} · key ${pos}`;
-  $('#pk-current').textContent = 'Now: ' + K.describe(cur);
-  drawParams(); drawPreview(); drawList();
-  $('#picker').showModal();
-}
-function choose(entry, vals) {
-  pk.entry = entry; pk.vals = { ...K.defaultParams(entry), ...vals };
-  drawParams(); drawPreview(); drawList();
-}
-function drawPreview() {
-  if (!pk.entry) { pk.binding = null; $('#pk-preview').textContent = 'Pick something below.'; $('#pk-apply').disabled = true; return; }
-  try {
-    pk.binding = K.bindingFor(pk.entry, pk.vals);
-    const lg = K.legend(pk.binding);
-    $('#pk-preview').textContent = `${K.describe(pk.binding)}   [${lg.top ? lg.top + ' ' : ''}${lg.main}]`;
-  } catch (e) { pk.binding = null; $('#pk-preview').textContent = e.message; }
-  $('#pk-apply').disabled = !pk.binding;
+function editKey(pos) {
+  const l = layer();
+  openPicker({
+    title: `${K.layerLabel(l.name, s.layer)} · key ${pos}`, current: l.bindings[pos], cat: s.cat,
+    onApply: async (b) => {
+      await s.client.setLayerBinding(l.id, pos, b);
+      l.bindings[pos] = { behaviorId: b.behaviorId, param1: b.param1 >>> 0, param2: b.param2 >>> 0 };
+      s.unsaved = true; paint();
+    },
+  });
 }
 
-const KEY_GROUPS = [['Letters', (c) => c >= 4 && c <= 0x1d], ['Numbers', (c) => c >= 0x1e && c <= 0x27], ['F keys', (c) => (c >= 0x3a && c <= 0x45) || (c >= 0x68 && c <= 0x73)], ['Other', () => true]];
-function keySelect(value, onchange) {
-  const seen = new Set(), groups = KEY_GROUPS.map(([name, test]) => h('optgroup', { label: name }, ...K.keyboardUsages.filter((k) => !seen.has(k.code) && test(k.code) && seen.add(k.code)).map((k) => h('option', { value: k.code, textContent: k.label, selected: k.code === value }))));
-  return h('select', { onchange: (e) => onchange(+e.target.value) }, ...groups);
-}
-const MODS = [['⌃', 1], ['⇧', 2], ['⌥', 4], ['⌘', 8]];
-function modsControl(value, onchange) {
-  const right = value >= 0x10, left = right ? value >> 4 : value & 0x0f;
-  const set = (l, r) => onchange(r ? (l << 4) & 0xff : l);
-  return h('div', { className: 'row' },
-    ...MODS.map(([g, b]) => h('button', { className: 'small' + (left & b ? ' on' : ''), textContent: g, onclick: () => { set(left ^ b, right); drawParams(); } })),
-    h('button', { className: 'small' + (right ? ' on' : ''), textContent: 'Right', onclick: () => { set(left, !right); drawParams(); } }));
-}
-function control(p) {
-  const v = pk.vals, set = (x) => { v[p.key] = x; drawPreview(); };
-  const lab = (n, el) => h('label', { className: 'field' }, n, el);
-  const name = { key: 'Key', tap: 'Tap key', hold: 'Hold', mods: 'Modifiers', layer: 'Layer', slot: 'Slot', code: 'Option', timing: 'Timing', mode: 'Mode', live: 'Live', profile: 'Profile' }[p.key] ?? p.key;
-  if (p.kind === 'mods') return lab(name, modsControl(v[p.key] ?? 0, set));
-  if (p.kind === 'key') return lab(name, keySelect(v[p.key] ?? 4, set));
-  if (p.kind === 'raw') {
-    const bs = pk.entry.behaviors ?? [], r = v.raw ?? { behaviorId: bs[0]?.id, param1: 0, param2: 0 };
-    const upd = (o) => { v.raw = { ...r, ...o }; drawPreview(); };
-    if (!v.raw && bs.length) v.raw = r;
-    return h('div', { className: 'field' }, 'Behavior',
-      h('select', { onchange: (e) => upd({ behaviorId: +e.target.value }) }, ...bs.map((b) => h('option', { value: b.id, textContent: b.displayName || '#' + b.id, selected: b.id === r.behaviorId }))),
-      h('div', { className: 'row' }, h('input', { type: 'number', value: r.param1 ?? 0, oninput: (e) => upd({ param1: +e.target.value || 0 }) }), h('input', { type: 'number', value: r.param2 ?? 0, oninput: (e) => upd({ param2: +e.target.value || 0 }) })));
-  }
-  if (p.kind === 'ms' && !p.variants?.length) {
-    const out = h('span', { textContent: `${v[p.key] ?? p.default} ms` });
-    return lab(name, h('div', { className: 'row' }, h('input', { type: 'range', className: 'grow', min: p.min, max: p.max, step: p.step || 10, value: v[p.key] ?? p.default, oninput: (e) => { out.textContent = e.target.value + ' ms'; set(+e.target.value); } }), out));
-  }
-  if (p.kind === 'ms' || p.kind === 'choice' || p.kind === 'layer') {
-    const opts = p.kind === 'ms' ? p.variants : p.options;
-    return lab(name, h('select', { onchange: (e) => set(isNaN(+opts[0]) ? e.target.value : +e.target.value) },
-      ...opts.map((o) => h('option', { value: o, textContent: p.kind === 'ms' ? `${o} ms` : p.labels?.[o] ?? String(o), selected: o === v[p.key] }))));
-  }
-  return lab(name, h('input', { type: 'number', min: p.min, max: p.max, value: v[p.key] ?? p.min ?? 0, oninput: (e) => set(+e.target.value || 0) }));
-}
-function drawParams() {
-  $('#pk-params').replaceChildren(...(pk.entry ? [h('b', { textContent: pk.entry.name }), h('span', { className: 'desc', textContent: pk.entry.desc }), ...pk.entry.params.map(control)] : []));
-}
-function drawList() {
-  const t = pk.term.trim().toLowerCase(), out = [];
-  const quick = K.searchKeys(pk.term);
-  if (quick.length) out.push(h('h4', { textContent: 'Keys' }), h('div', { className: 'chips' }, ...quick.map((q) => h('button', { className: 'small', textContent: q.label, onclick: () => choose(s.cat.find((e) => e.id === q.entryId), q.params) }))));
-  for (const g of K.CATALOG_GROUPS) {
-    const es = s.cat.filter((e) => e.group === g.id && (!t || `${e.name} ${e.desc} ${g.label}`.toLowerCase().includes(t)));
-    if (!es.length) continue;
-    out.push(h('h4', { textContent: g.label }), h('div', { className: 'chips' }, ...es.map((e) => h('button', { className: 'small' + (pk.entry?.id === e.id ? ' on' : ''), textContent: e.name, title: e.desc, onclick: () => choose(e, e.id === pk.entry?.id ? pk.vals : {}) }))));
-  }
-  $('#pk-list').replaceChildren(...out);
-}
-async function applyPick() {
-  if (!pk.binding) return;
-  $('#pk-apply').disabled = true;
-  try {
-    const l = layer();
-    await s.client.setLayerBinding(l.id, pk.pos, pk.binding);
-    l.bindings[pk.pos] = { behaviorId: pk.binding.behaviorId, param1: pk.binding.param1 >>> 0, param2: pk.binding.param2 >>> 0 };
-    s.unsaved = true; $('#picker').close(); paint();
-  } catch (e) { $('#pk-msg').textContent = String(e.message || e); $('#pk-apply').disabled = false; }
-}
+/** Behaviors/catalog for pickers in other sheets; null until Studio is connected. */
+export const studioCtx = () => (s.client ? { cat: s.cat, behaviors: s.behaviors, keymap: s.keymap } : null);
+/** Connects Studio on demand (needs a user gesture on a real link); resolves to the ctx or null. */
+export async function ensureStudio() { if (!s.client && !s.busy) await connect(); return studioCtx(); }
