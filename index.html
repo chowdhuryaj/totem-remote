@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<title>Totem Remote</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="row">
+    <button id="connect" class="primary">Connect</button>
+    <button id="demo">Demo</button>
+    <span id="state" class="grow">Not connected</span>
+  </div>
+  <div class="row" id="statusbar" hidden>
+    <button id="out" title="Toggle output">Out: -</button>
+    <span id="caps" class="pill" hidden>CAPS</span>
+    <span id="batt" class="pill grow"></span>
+  </div>
+</header>
+
+<main>
+  <section id="tab-pad" class="panel">
+    <div id="padwrap">
+      <div id="pad"><span class="hint">trackpad</span></div>
+      <div id="strip"><span class="hint">scroll</span></div>
+    </div>
+    <div class="row pad-opts">
+      <label class="grow">Speed <input id="speed" type="range" min="0.5" max="4" step="0.1"></label>
+      <label><input id="natural" type="checkbox"> Natural scroll</label>
+    </div>
+  </section>
+
+  <section id="tab-keys" class="panel" hidden>
+    <button id="kbd" class="big">Open keyboard</button>
+    <input id="hidden" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Keyboard capture">
+    <div class="grid mods" id="mods"></div>
+    <div class="grid" id="special"></div>
+  </section>
+
+  <section id="tab-deck" class="panel" hidden>
+    <div class="row">
+      <button id="deck-edit">Edit</button>
+      <button id="deck-add" hidden>+ Add</button>
+      <button id="deck-json">JSON</button>
+    </div>
+    <div class="grid deck" id="deck"></div>
+  </section>
+
+  <pre id="log" hidden></pre>
+</main>
+
+<nav>
+  <button data-tab="pad" class="on">Pad</button>
+  <button data-tab="keys">Keys</button>
+  <button data-tab="deck">Deck</button>
+</nav>
+
+<dialog id="editor"></dialog>
+<dialog id="jsond">
+  <h3>Deck JSON</h3>
+  <textarea id="jsonta" rows="12" spellcheck="false"></textarea>
+  <div class="row">
+    <button id="json-import" class="primary">Import (replace)</button>
+    <button id="json-reset">Reset defaults</button>
+    <button id="json-close">Close</button>
+  </div>
+  <p id="json-msg"></p>
+</dialog>
+<script type="module" src="app.js"></script>
+</body>
+</html>
