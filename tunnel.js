@@ -31,7 +31,8 @@ export class TunnelHID extends EventTarget {
         if (this._pending) { this._pending = null; reject(new TunnelError('timeout', 'Keyboard did not answer in time')); }
       }, timeoutMs);
       this._pending = { matches, resolve, reject, timer };
-      const frame = Uint8Array.from(prefix.slice(0, 32));
+      // The firmware refuses frames under 5 bytes (ATT 0x0D); u16 gets are 3 bytes, so pad with zeros.
+      const frame = Uint8Array.from([...prefix.slice(0, 32), 0, 0, 0, 0, 0].slice(0, Math.max(5, Math.min(prefix.length, 32))));
       Promise.resolve().then(() => this.io.write(frame)).catch((e) => {
         clearTimeout(timer); this._pending = null;
         reject(new TunnelError('writeFailed', /0x82|not permitted|authoriz/i.test(String(e?.message)) ? 'Config window is closed' : `Tunnel write failed: ${e?.message ?? e}`));

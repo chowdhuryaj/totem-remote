@@ -107,13 +107,12 @@ export async function macros(body, F) {
       row('Type text', h('input', { placeholder: 'e.g. hello', onchange: (e) => { const u = textToUsages(e.target.value); if (!u) { ui.report('Printable ASCII only.'); return; } d.splice(0, d.length, ...u.slice(0, cap).map((param) => ({ action: MACRO_ACTION.tap, param }))); draw(); } })),
       h('div', { className: 'row' },
         h('button', { className: 'primary grow', textContent: 'Write macro', onclick: async () => { try { await saveSteps(m, d); fill(); } catch (e) { ui.report(e.message); } } }),
-        h('button', { className: 'grow', textContent: 'Play', onclick: async () => { try { await flask.setU16(ch, V.macrosState, m + 1); } catch (e) { ui.report(e.message); } } }),
         h('button', { className: 'grow', textContent: 'Back', onclick: fill })));
     draw(); set(list, card);
   };
   const fill = () => set(list, ...slots.map((st, m) => h('button', { className: 'card btnrow', onclick: () => edit(m) }, h('b', { textContent: `Macro ${m}` }), h('span', { textContent: summary(st) }))));
   fill();
-  body.append(h('p', { className: 'hint', textContent: 'Key sequences you can put on a key (Keymap tab, Macro). Edits are written when you tap Write macro.' }),
+  body.append(h('p', { className: 'hint', textContent: 'Key sequences you can put on a key (Keymap tab, Macro). Edits are written when you tap Write macro. Playback is not available from the phone.' }),
     row('Enabled', toggle(enabled ? 'On' : 'Off', !!enabled, async (on) => { enabled = await flask.setU16(ch, V.macrosEnabled, on ? 1 : 0); F.dirty(ch, 'Macros'); return !!enabled; })),
     row('Tap length', slider({ min: 5, max: 200, step: 5, value: tapMs, fmt: (v) => `${v} ms`, onchange: async (v) => { tapMs = await flask.setU16(ch, V.macrosTapMs, v); F.dirty(ch, 'Macros'); return tapMs; } })),
     row('Wait between', slider({ min: 5, max: 200, step: 5, value: waitMs, fmt: (v) => `${v} ms`, onchange: async (v) => { waitMs = await flask.setU16(ch, V.macrosWaitMs, v); F.dirty(ch, 'Macros'); return waitMs; } })), list);

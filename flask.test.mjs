@@ -16,13 +16,20 @@ test('tunnel: handshake, caps, frames are 1-32 bytes, replies 32', async () => {
   const v = await flask.handshake();
   assert.equal(v, 23);
   assert.equal(zmkCapabilities('totem', v).combosTimed, true);
-  assert.ok(io.log.every((f) => f.length >= 1 && f.length <= 32));
-  assert.deepEqual(io.log[0], [0x08, 0x00, 0x01]);
+  assert.ok(io.log.every((f) => f.length >= 5 && f.length <= 32));
+  assert.deepEqual(io.log[0], [0x08, 0x00, 0x01, 0, 0]); // padded to the firmware's 5-byte minimum
 });
 
-test('unhandled channel -> FlaskProto throws', async () => {
-  const { flask } = mk();
-  await assert.rejects(flask.getU16(0x2d, 0x01), /unhandled/);
+test('allowlist: refused frames reject like the BLE tunnel (ATT 0x13 / 0x0D)', async () => {
+  const { io, flask, hid } = mk();
+  await assert.rejects(flask.getU16(0x2d, 0x01), /0x13/);        // channel not allowlisted
+  await assert.rejects(flask.getU16(0x00, 0x02), /0x13/);        // meta: only 0x01 and 0x03
+  await assert.rejects(flask.getU16(0x00, 0x04), /0x13/);
+  await assert.rejects(flask.setU16(0x25, 0x06, 1), /0x13/);     // macro playback
+  await assert.rejects(flask.getBytes(0x2a, 0x54, [0], 1), /0x13/); // hold-tap log
+  assert.equal(await flask.getU16(0x00, 0x03), 6);               // family is allowed
+  assert.equal(io.refused.length, 5);
+  await assert.rejects(new (hid.constructor)({ onFrame() {}, write: (f) => io.write(f.slice(0, 3)) }).request([0x08, 0, 1]), /0x0D/); // short frame
 });
 
 test('reads through the vendored codecs: combo, macro, tap dance, hold-tap', async () => {

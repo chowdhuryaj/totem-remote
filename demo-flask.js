@@ -37,9 +37,20 @@ const TABLES = {
 const key = (ch, id) => `0x${ch.toString(16).padStart(2, '0')}:0x${id.toString(16).padStart(2, '0')}`;
 const usage = (id, page = 7) => ((page << 16) | id) >>> 0;
 
+// The phone tunnel's allowlist (Totem-ZMK src/phone_remote/remote_proto.c k_flask_channels). Anything else is refused
+// with ATT 0x13 (0x0D for frames under 5 bytes), which surfaces as a rejected write exactly like the BLE tunnel.
+const ALLOWED = new Set([0x11, 0x16, 0x19, 0x24, 0x25, 0x28, 0x2a, 0x2b, 0x2c]);
+const DENIED_VALUES = { 0x25: [0x06], 0x2a: [0x54] };
+export function tunnelAllows(frame) {
+  const [cmd, ch, id] = frame;
+  if (![CMD.set, CMD.get, CMD.save].includes(cmd)) return false;
+  if (ch === 0x00) return cmd === CMD.get && (id === 0x01 || id === 0x03);
+  return ALLOWED.has(ch) && !(DENIED_VALUES[ch] ?? []).includes(id);
+}
+
 export class DemoFlaskIo {
   constructor() {
-    this.values = new Map(); this.rows = new Map(); this.onFrame = () => {}; this.log = []; this.saves = [];
+    this.values = new Map(); this.rows = new Map(); this.onFrame = () => {}; this.log = []; this.saves = []; this.refused = [];
     // seeds so the demo is not empty
     this._put('0x24:0x12', [0, 14, 15, 0xff, 0xff, 1, 0, 0, ...u32(usage(0x29)), ...u32(0), 0, 0, 0, 0, 0xff]); // combo 0: two keys -> Esc
     this._put('0x25:0x10', [0, 0, 1, ...u32(usage(0x0b))]); this._put('0x25:0x10', [0, 1, 1, ...u32(usage(0x0c))]);                  // macro 0: "hi"
@@ -55,6 +66,8 @@ export class DemoFlaskIo {
   async write(frame) {
     const [cmd, ch, id, ...p] = frame, k = key(ch, id);
     this.log.push(Array.from(frame));
+    if (frame.length < 5) { this.refused.push(Array.from(frame)); throw new Error('ATT error 0x0D (invalid attribute length)'); }
+    if (!tunnelAllows(frame)) { this.refused.push(Array.from(frame)); throw new Error('ATT error 0x13 (value not allowed)'); }
     let reply;
     if (cmd === CMD.save) { this.saves.push(ch); reply = this._reply(CMD.save, ch, 0); }
     else if (TABLES[k]) {
