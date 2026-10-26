@@ -66,3 +66,4 @@ dialog textarea{width:100%;font:12px ui-monospace,Menlo,monospace}
 .step .row{flex-wrap:wrap}.step button{min-height:40px}
 .swatches{display:flex;gap:8px}.sw{width:40px;height:40px;min-height:40px;padding:0;border-radius:12px;background:var(--fill);border:2px solid transparent}.sw.on{border-color:var(--fg);background:var(--fill)}
 .icons{display:grid;grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:6px}.icons button{min-height:44px;padding:0;display:flex;align-items:center;justify-content:center}.icons svg{width:24px;height:24px}
+#keys{flex:none;display:flex;flex-direction:column;gap:8px;max-height:38dvh;overflow-y:auto;background:var(--card);border-radius:16px;padding:8px}

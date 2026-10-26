@@ -48,6 +48,12 @@
       <div id="strip"><span class="hint">scroll</span></div>
     </div>
   </section>
+<section id="keys" hidden>
+  <div class="row"><button id="kbd" class="primary grow">Open keyboard</button><button data-close>Close</button></div>
+  <input id="hidden" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Keyboard capture">
+  <div class="grid mods" id="mods"></div>
+  <div class="grid" id="special"></div>
+</section>
 </main>
 
 <nav>
@@ -56,12 +62,7 @@
   <button id="nb-set">Settings</button>
 </nav>
 
-<dialog id="keys" class="sheet">
-  <div class="row"><button id="kbd" class="primary grow">Open keyboard</button><button data-close>Close</button></div>
-  <input id="hidden" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Keyboard capture">
-  <div class="grid mods" id="mods"></div>
-  <div class="grid" id="special"></div>
-</dialog>
+
 
 <dialog id="gests" class="sheet">
   <div class="row"><b id="gesthost" class="grow"></b><button data-close>Close</button></div>

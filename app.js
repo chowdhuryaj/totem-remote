@@ -76,7 +76,11 @@ async function pump() {
         if (!it.text) fifo.shift();
         await tx('text', P.encodeText(chunk));
       } else if (it.t === 'delay') { fifo.shift(); await sleep(it.ms); }
-      else { fifo.shift(); await tx(it.kind, it.bytes); }
+      else {
+        // Key writes share the dongle's text ring (6 bytes each); a write into a full ring is refused and lost.
+        if (it.kind === 'key') { if (textFree < P.KEY_COST) break; textFree -= P.KEY_COST; }
+        fifo.shift(); await tx(it.kind, it.bytes);
+      }
     }
   } finally { pumping = false; }
 }
@@ -263,14 +267,14 @@ const take = (k, lim) => { const v = Math.max(-lim, Math.min(lim, Math.trunc(m[k
 function frame(now) {
   if (!running) return;
   requestAnimationFrame(frame);
-  if (inflight) return;
   let changed = false;
   if (m.ev.length) { const [mask, down] = m.ev.shift(); m.buttons = down ? m.buttons | mask : m.buttons & ~mask; changed = true; }
   const dx = take('dx', 32767), dy = take('dy', 32767), wheel = take('wh', 127), hwheel = take('hw', 127);
   if (dx || dy || wheel || hwheel) changed = true;
   if (!changed && !(m.buttons && now - m.last >= 250)) return; // held button: resend every 250 ms
   m.last = now;
-  tx('mouse', P.encodeMouse({ buttons: m.buttons, dx, dy, wheel, hwheel }));
+  // Write Without Response on its own characteristic: not queued behind text, so a held button keeps resending during long typing.
+  if (link) Promise.resolve().then(() => link?.write('mouse', P.encodeMouse({ buttons: m.buttons, dx, dy, wheel, hwheel }))).catch(() => {});
 }
 
 // ---------- trackpad ----------
@@ -501,10 +505,10 @@ $('#json-import').onclick = () => {
 renderDeck();
 
 // ---------- bottom toolbar, sheets, expandable pad ----------
-$('#nb-keys').onclick = () => ($('#keys').open ? $('#keys').close() : $('#keys').show()); // non-modal so the pad stays usable
+$('#nb-keys').onclick = () => { $('#keys').hidden = !$('#keys').hidden; }; // in the layout flow: the deck shrinks, the pad stays visible
 $('#nb-gest').onclick = () => $('#gests').showModal();
 $('#nb-set').onclick = () => { $('#settings').showModal(); };
-for (const b of document.querySelectorAll('[data-close]')) b.onclick = () => b.closest('dialog').close();
+for (const b of document.querySelectorAll('[data-close]')) b.onclick = () => { const d = b.closest('dialog,#keys'); d.close ? d.close() : (d.hidden = true); };
 $('#padhandle').onclick = () => {
   const full = document.body.classList.toggle('full');
   $('#padhandle').textContent = full ? 'Collapse trackpad' : 'Expand trackpad';

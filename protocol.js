@@ -10,6 +10,7 @@ export const MOD = { LCTRL: 1, LSHIFT: 2, LALT: 4, LGUI: 8, RCTRL: 16, RSHIFT: 3
 export const PAGE = { KEYBOARD: 0x07, CONSUMER: 0x0c };
 export const ACTION = { RELEASE: 0, PRESS: 1, TAP: 2 };
 export const TEXT_MAX = 244;
+export const KEY_COST = 6; // a Key write occupies this many bytes of the dongle's text ring
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(v) || 0));
 

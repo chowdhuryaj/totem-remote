@@ -92,3 +92,5 @@ test('workstation sample page is placeholder-only and icons exist', () => {
   for (const h of HOSTS) for (const p of c.profiles[h].pages) for (const b of p.buttons) assert.ok(ICONS[b.icon], b.icon);
   assert.ok(Object.keys(ICONS).length >= 40);
 });
+
+test('key writes cost 6 ring bytes', () => { assert.equal(P.KEY_COST, P.encodeKey({}).length); });
