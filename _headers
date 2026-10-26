@@ -1,4 +1,4 @@
-# Static host headers (Cloudflare Pages / Netlify format). frame-ancestors only works as a header.
+# Static host headers (Cloudflare Pages / Netlify format). GitHub Pages ignores this file; app.js does the frame check there.
 /*
   Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; manifest-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
   X-Content-Type-Options: nosniff

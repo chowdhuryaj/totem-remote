@@ -6,6 +6,9 @@ import { KEY_GROUPS, asciiKey, keyLabel } from './keys.js';
 import { ICON_NAMES, icon } from './icons.js';
 import { GESTURES, COLORS, defaultConfig, cleanConfig, importAny, migrate, classifyMulti, classifyPinch } from './config.js';
 
+// GitHub Pages can't send frame-ancestors; refuse to run inside another page's frame.
+if (window.top !== window.self) throw new Error('framed');
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const hex = (b) => [...b].map((x) => x.toString(16).padStart(2, '0')).join(' ');
 const store = {
