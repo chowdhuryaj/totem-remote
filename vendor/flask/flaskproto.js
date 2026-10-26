@@ -1,0 +1,363 @@
+// Flask raw-HID tuning protocol constants + typed operations, for BOTH
+// firmware lines: ZMK (zmk-flask-modules flask_proto; CH_ZMK / V) and QMK
+// (the Svalboard's mad_hid.c; CH_QMK / V_QMK). Family identity and expected
+// versions live in boards.js (QMK) and zmk.js (ZMK).
+//
+// The two lines allocated channel numbers independently: 0x23-0x29 mean
+// different features on each, and 0x00/0x04, 0x16, 0x19 and 0x1B carry
+// different payloads. Never read a channel through the other line's map —
+// a connection is one family, and every call site names its line.
+//
+// Frame shape: [cmd, channel, value_id, payload...]. u16 payloads are
+// BIG-endian at bytes [3],[4]. Setters CLAMP firmware-side and echo the
+// applied value; callers must adopt the echo (see ui.js sliderRow).
+
+// Flask command bytes (VIA custom-value framing).
+export const CMD = { set: 0x07, get: 0x08, save: 0x09, unhandled: 0xFF };
+
+// Channel numbers, one per flask_* firmware module. A channel the board does
+// not serve answers id_unhandled, which this app reads as "device lacks this
+// feature"; the caps gates in zmk.js stop the UI offering what a family
+// lacks.
+export const CH_ZMK = {
+    meta: 0x00,
+    accel: 0x10, gestures: 0x11,
+    customShift: 0x16, leader: 0x19,
+    autoscroll: 0x1A, autoMouse: 0x1B,
+    rgbMap: 0x21,
+    keyState: 0x23, // v5+: pressed-position bitmap (HUD press feed)
+    combos: 0x24,   // v7+: flask_combos runtime combo slots
+    macros: 0x25,   // v8+: flask_macros runtime macro steps
+    scrollSnap: 0x26, // v9+: flask_scrollsnap axis snap/lock
+    ballSwap: 0x27, // v11+: flask_ballswap trackball role swap
+    tapDance: 0x28, // v14+: flask_tapdance runtime tap dances
+    scrollScale: 0x29, // v15+: flask_scrollscale live scroll speed
+    adaptive: 0x2B, // v18+ (Totem): flask_adaptive runtime adaptive keys (&fak)
+    autoShift: 0x2C, // v19+ (Totem): flask_autoshift runtime global auto shift + retro shift
+    mouseKeys: 0x2D, // v20+ (Totem): flask_mousekeys live &mmv/&msc speed + ramp
+};
+
+export const V = {
+    // meta
+    metaProtocolVersion: 0x01,
+    metaActiveLayer: 0x02, // RO: highest active layer (HUD feed)
+    metaFamily: 0x03,      // numeric family code (zmk.js ZMK_FAMILY_CODES)
+    metaResetCause: 0x04,  // RO: hwinfo reset-cause bits at boot (crash forensics)
+    // accel (x100-scaled floats on the wire; offset is SIGNED)
+    accelEnabled: 0x01, accelTakeoff: 0x02, accelGrowth: 0x03,
+    accelOffset: 0x04, accelLimit: 0x05,
+    // gestures (flask_gestures v10: typed-output slot frames at 0x50)
+    gesturesRatchetStep: 0x01, gesturesActiveSet: 0x02,
+    gesturesEnabled: 0x03, gesturesSetCount: 0x04,
+    gesturesSlot: 0x50,
+    // custom shift keys (v14): slot frame [slot, base u32 BE, shifted u32 BE]
+    // + (morph firmware) [trigger mods, flags]; cskMorphCaps RO u16 = 1 there
+    // OS-aware flags (bits 1-4): cskOsMode RO u16 (0 PC, 1 Mac, 0xFFFF none), cskOskCaps RO u16 = 1 there
+    cskEnabled: 0x01, cskSlotCount: 0x02, cskMorphCaps: 0x03,
+    cskOsMode: 0x04, cskOskCaps: 0x05,
+    cskSlot: 0x50,
+    // leader (flask_leader v10): typed-output sequence frames at 0x50
+    leaderTimeout: 0x01,
+    leaderSlotCount: 0x02, leaderKeys: 0x03, leaderEnabled: 0x04,
+    leaderSlot: 0x50,
+    // autoscroll
+    asInverted: 0x01, asSpeedScale: 0x02, asDeadzone: 0x03, asRange: 0x04,
+    asState: 0x05,     // live: GET signed level / ±100 jogging; SET force-stops
+    asStopOnKey: 0x06,
+    // auto-mouse (flask_automouse: timeout 0 = latch until a transparent
+    // key, extend re-arms the timeout on non-transparent keys)
+    amEnabled: 0x01, amTimeout: 0x02, amThreshold: 0x03, amLayer: 0x04,
+    amExtend: 0x05,
+    // scroll speed (flask_scrollscale, v15+). A PERCENT of the keymap's
+    // compiled divisors, not an absolute rate: 100 = the firmware's
+    // benched default, 200 = twice as fast. One knob drives both axes so
+    // their base ratio (16 horizontal : 12 vertical on the Imprint) holds.
+    scrollSpeedPct: 0x01,
+    // mouse keys (flask_mousekeys 0x2D, v20+). Plain u16 each. High nibble =
+    // kind (0x0_ pointer, 0x1_ scroll). Speed = percent of the keymap's
+    // compiled max (10..400), ramp = ms to full speed (0..3000, 0 = none),
+    // exp 0 uniform / 1 linear / 2 quadratic / 3 cubic.
+    mkPointerSpeed: 0x01, mkPointerRamp: 0x02, mkPointerExp: 0x03,
+    mkScrollSpeed: 0x11, mkScrollRamp: 0x12, mkScrollExp: 0x13,
+    // v21+: start speed floor, percent of full speed a movement begins at
+    // (0..100, 0 = plain ramp from zero).
+    mkPointerFloor: 0x04, mkScrollFloor: 0x14,
+    // RGB map (0x21) — enabled/layers/leds are u16; led/fill are
+    // PAYLOAD-ADDRESSED byte frames (getBytes/setBytes, never u16 helpers).
+    // 0x04-0x08: effect engine (v9) — whole-strip animation underneath the
+    // painted map (painted keys overlay the effect).
+    rgbmapEnabled: 0x01, rgbmapLayers: 0x02, rgbmapLeds: 0x03,
+    rgbmapEffect: 0x04, rgbmapEffectSpeed: 0x05,
+    rgbmapEffectHue: 0x06, rgbmapEffectSat: 0x07, rgbmapEffectVal: 0x08,
+    rgbmapSplitLink: 0x09, // RO: central found the peripheral's rgb GATT char
+    // v12: chunked runtime LED→keymap-position table [start, count, pos...]
+    // (0xFF = no key / underglow) — the wizard's measured order, on-device.
+    rgbmapLedOrder: 0x0A,
+    rgbmapLed: 0x10, rgbmapFill: 0x12,
+    // key state (0x23) — PAYLOAD-ADDRESSED byte frame (getBytes):
+    // payload byte N/8 bit N%8 = key position N pressed. Read-only.
+    keyStateBitmap: 0x01,
+    // combos (0x24) — enabled/count/timeout/keys are u16; slot is
+    // a PAYLOAD-ADDRESSED byte frame [slot, pos x KEYS (0xFF empty), usage
+    // u32 BE]. KEYS = combosKeys on v9+ (RO), 4 on v7/v8 firmware.
+    combosEnabled: 0x01, combosSlotCount: 0x02, combosTimeout: 0x03,
+    combosKeys: 0x04,
+    combosSlot: 0x10,
+    // v12 typed slot: [slot, pos x KEYS, action, behavior_id u16 BE,
+    // param1 u32 BE, param2 u32 BE] — action 0 none / 1 usage-hold /
+    // 2 play-macro / 3 invoke-behavior (Studio local id + two params).
+    combosSlotV2: 0x11,
+    // v14 timed slot: the v2 frame + [timeout u16 BE, prior-idle u16 BE,
+    // layer index (0xFF = all)] — the imported devicetree combos' knobs.
+    combosSlotV3: 0x12,
+    // macros (0x25) — enabled/counts/pacing are u16; state is
+    // live-only (GET = playing slot+1 or 0; SET v>0 plays v-1, 0 stops);
+    // step is a PAYLOAD-ADDRESSED byte frame [slot, step, action, param u32 BE]
+    macrosEnabled: 0x01, macrosSlotCount: 0x02, macrosStepCount: 0x03,
+    macrosTapMs: 0x04, macrosWaitMs: 0x05, macrosState: 0x06,
+    macrosStep: 0x10,
+    // scroll snap (0x26, v9) — all u16
+    snapEnabled: 0x01, snapThreshold: 0x02, snapSamples: 0x03,
+    snapImmediate: 0x04, snapLockMs: 0x05, snapLockEvents: 0x06,
+    snapIdleReset: 0x07,
+    // ball swap (0x27, v11) — u16. swapped = persisted base state
+    // (SET applies live; SAVE or the &bswap 0 key persists); effective is
+    // RO = base XOR momentary &bswap 1 holds.
+    bswapSwapped: 0x01, bswapEffective: 0x02,
+    // rgb brightness (0x21, v14) — global percent 0-100, scales
+    // every rendered pixel on both halves.
+    rgbmapBrightness: 0x0B,
+    // v16: seconds of KEYBOARD inactivity before the strip blanks; 0 = never.
+    // The firmware floors anything below its compiled ZMK idle timeout (30 s)
+    // — that event is the earliest signal flask_rgb gets.
+    rgbmapIdleTimeout: 0x0C,
+    // tap dance (0x28, v14) — enabled/counts u16; step + cfg are
+    // PAYLOAD-ADDRESSED byte frames: step [slot, tap, action, behavior u16
+    // BE, p1 u32 BE, p2 u32 BE], cfg [slot, term u16 BE (0 = default 200)].
+    tdEnabled: 0x01, tdSlotCount: 0x02, tdTaps: 0x03,
+    tdStep: 0x50, tdCfg: 0x51, tdPriorIdle: 0x52, tdRelease: 0x53, tdFlags: 0x54,
+    // adaptive keys (0x2B, v18) — enabled/counts u16 (counts RO); payload-
+    // addressed byte frames: rule [rule, set, trigger u32 BE (id 0-15, page
+    // 16-23, mods 24-31; 0 = delete), max idle ms u16 BE, flags (bit0 exact
+    // mods)], step [rule, step, action, behavior u16, p1 u32, p2 u32] (the
+    // tap-dance step frame), fallback [set, action, behavior u16, p1, p2].
+    akEnabled: 0x01, akSetCount: 0x02, akRuleCount: 0x03, akStepCount: 0x04,
+    akRule: 0x50, akStep: 0x51, akFallback: 0x52,
+    // auto shift (0x2C, v19) — every value a plain u16 (prefix ash: as* is
+    // autoscroll). groups = bitmask (zmk-autoshift-codec ASH_GROUPS).
+    ashEnabled: 0x01, ashTimeout: 0x02, ashGroups: 0x03, ashModifiers: 0x04,
+    ashRepeat: 0x05, ashNoAutoRepeat: 0x06, ashRetro: 0x07, ashRetroLimit: 0x08,
+};
+
+// ---------- QMK line (Svalboard, mad_hid.c protocol v27) ----------
+
+export const VIDPID = { svalboard: { vid: 0x303A, pid: 0x4044 } };
+
+// Per-family protocol version lines: INDEPENDENT, never compare across.
+// ZMK families answer from zmk.js ZMK_EXPECTED_PROTOCOL. v24-v27: corner
+// reference layer + retired thumb chords, auto-mouse ball mask, board
+// variant / cluster keys / drops on meta, half on meta, Centre + North.
+export const EXPECTED_PROTOCOL = { svalboard: 27 };
+
+// Channels the Svalboard serves at v27 (mad_hid.c enum flask_hid_channel).
+// Removed and deliberately absent: accel 0x10 / smoothing 0x13 / snippets
+// 0x24 / teleport 0x26 (v18), gestures 0x11 (v15), wiggle 0x12 / autoscroll
+// 0x1A / ball gestures 0x1C + 0x27 (v26). They answer id_unhandled.
+export const CH_QMK = {
+    meta: 0x00,
+    dpi: 0x14, dragScroll: 0x15,
+    customShift: 0x16, selectWord: 0x17, sentenceCase: 0x18, leader: 0x19,
+    autoMouse: 0x1B, os: 0x1D, numWord: 0x1E, diag: 0x1F, comboLayers: 0x20,
+    cyclotab: 0x23,     // v12+: Alt-Tab / Cmd-Tab modifier swapper
+    altRepeat: 0x25,    // v13+: alt-repeat chaining + stale-input default
+    corner: 0x28,       // v17+: positional corner chords. NEVER SAVE (see FlaskProto.save)
+    mouseButtons: 0x29, // v20+: double-click gap + click-lock latch
+};
+
+export const V_QMK = {
+    // meta (0x03 is metaFamily on the ZMK line: never read it here)
+    metaProtocolVersion: 0x01,
+    metaActiveLayer: 0x02,  // v10 RO: highest active layer (HUD feed)
+    metaBoardVariant: 0x04, // v25 RW: 0 unknown / 1 six-key / 2 five-key (TOLD, persisted by SAVE 0x00)
+    metaClusterKeys: 0x05,  // v25 RO: 6 or 5 (unknown answers 6)
+    metaAbsentDrops: 0x06,  // v25 RO: events the absent-key mask dropped
+    metaHalf: 0x07,         // v26 RO: 1 left / 2 right
+    // dpi: per-side table index, v10 raw per-side CPI (0 = index mode)
+    dpiLeft: 0x02, dpiRight: 0x03, dpiLeftCpi: 0x04, dpiRightCpi: 0x05,
+    // drag scroll (left ball)
+    dragDivisor: 0x01, dragInverted: 0x03, dragInterval: 0x06, dragMaxNotches: 0x07,
+    dragHiresMode: 0x08,   // v21: 0 off / 1 on / 2 follow OS
+    dragHiresActive: 0x09, // v21 RO: what follow resolves to now
+    // custom shift keys: u16 pair tables (0x10+i base, 0x30+i shifted)
+    cskEnabled: 0x01, cskSlotCount: 0x02,
+    selectWordMac: 0x01,
+    sentenceCaseEnabled: 0x01,
+    // Super Leader (v12+): 16 sequences, stride 8, pos 5 kind, pos 6 output
+    slTimeout: 0x01, slLiveCount: 0x02,
+    // auto-mouse: timeout is an INDEX into SVAL_AUTOMOUSE_TIMEOUTS
+    amEnabled: 0x01, amTimeout: 0x02, amThreshold: 0x03, amLayer: 0x04,
+    amSources: 0x05, // v24: ball mask bit0 left, bit1 right (ZMK 0x05 means something else)
+    osFollow: 0x01, osMac: 0x02, osDetected: 0x03,
+    nwTimeout: 0x01, nwLayer: 0x02, nwActive: 0x03,
+    diagMaxGap: 0x01, diagUptime: 0x02,
+    clCount: 0x01,
+    cycEnabled: 0x01, cycTimeout: 0x02,
+    arepChain: 0x01, arepStaleMs: 0x02, arepDefaultOut: 0x03,
+    // corner chords: u16 values, then PAYLOAD-ADDRESSED def/out/layers frames
+    ccEnabled: 0x01, ccTerm: 0x02, ccDefCount: 0x03, ccOutCount: 0x04,
+    ccMisfires: 0x05, ccCapture: 0x06, ccFires: 0x07, ccCaptureBase: 0x08,
+    ccUnplaced: 0x0B, ccSlotsUsed: 0x0C, // v23
+    ccRefLayer: 0x0D,                    // v24 RO: layer chord members resolve through
+    ccDef: 0x10, ccOut: 0x11, ccLayers: 0x12,
+    // mouse buttons: gap persisted; lock mask LIVE (any SET releases all)
+    mbDoubleGap: 0x01, mbLockMask: 0x02,
+};
+
+// Slot value-id helpers (append-only wire ids).
+export const slot = {
+    cskKey(i) { return 0x10 + i; },
+    cskShift(i) { return 0x30 + i; },
+    superLeader(seq, pos) { return 0x10 + seq * 8 + pos; }, // pos 0-4 keys, 5 kind, 6 output
+    comboMask(i) { return 0x10 + i; },
+    cyclotabKey(i) { return 0x10 + i; },
+};
+
+export const CSK_SLOTS = 16;
+export const SL_SEQS = 16;
+export const SL_KEYS = 5;
+export const SL_KIND_POS = 5;
+export const SL_OUT_POS = 6;
+export const CYCLOTAB_KEYS = 4;
+
+// Corner-chord def index layout (corner_seed.h). A WIRE CONTRACT shared with
+// .vil files: never reorder. v24 retired the thumb block 48-59 (reserved,
+// never reissued); v27 revived slot +5 of each finger cluster as Centre +
+// North. 48 live chords: 8 clusters x 6.
+export const CC = {
+    maxKeys: 2,
+    fingerClusters: 8, fingerChords: 6,
+    retiredBase: 48, retiredCount: 12,
+    total: 60,
+    posNone: 0xFF,
+    clusterNames: ['L index', 'L middle', 'L ring', 'L pinky',
+        'R index', 'R middle', 'R ring', 'R pinky'],
+    fingerChordNames: ['North + East', 'East + South', 'South + West',
+        'West + North', 'Centre + South', 'Centre + North'],
+};
+export const ccRetired = (def) => def >= CC.retiredBase && def < CC.retiredBase + CC.retiredCount;
+
+/** Switch positions pack as (row << 3) | col on the wire. */
+export const ccRow = (p) => p >> 3;
+export const ccCol = (p) => p & 0x07;
+
+/** "L index · North + East"; retired defs say so. */
+export function ccDefName(def) {
+    if (ccRetired(def)) return `Chord ${def} (retired)`;
+    const cluster = Math.floor(def / CC.fingerChords), chord = def % CC.fingerChords;
+    if (cluster >= CC.clusterNames.length) return `Chord ${def}`;
+    return `${CC.clusterNames[cluster]} · ${CC.fingerChordNames[chord]}`;
+}
+
+// Mirrors dpi_choices[] (keyboards/svalboard/svalboard.c).
+export const SVAL_DPI_OPTIONS = [200, 400, 600, 800, 1200, 1600, 2400, 3200, 4800, 6400, 12000];
+// Mirrors mh_timer_choices[] (svalboard.c); -1 = never.
+export const SVAL_AUTOMOUSE_TIMEOUTS = [200, 300, 400, 500, 800, -1];
+export const CPI_MAX = 4000, CPI_STEP = 50;
+
+export function osName(raw) {
+    return { 1: 'Linux', 2: 'Windows', 3: 'macOS', 4: 'iOS' }[raw] || 'not detected yet';
+}
+
+// ---------- typed operations over a FlaskHID ----------
+
+export class FlaskProto {
+    constructor(hid) { this.hid = hid; }
+
+    _u16(r) { return (r[3] << 8) | r[4]; }
+
+    async getU16(channel, valueID) {
+        const r = await this.hid.request([CMD.get, channel, valueID]);
+        if (r[0] !== CMD.get) throw new Error('unhandled');
+        return this._u16(r);
+    }
+
+    async getI16(channel, valueID) {
+        const v = await this.getU16(channel, valueID);
+        return (v << 16) >> 16; // sign-extend
+    }
+
+    /** Returns the value the firmware actually applied (clamp-echo). */
+    async setU16(channel, valueID, value) {
+        if (!Number.isFinite(value)) throw new RangeError(`setU16: ${value} is not a number`);
+        // Clamp in wire-width (u16) space BEFORE any narrowing — a bare i8
+        // cast once wrapped 200 → −56 on hardware.
+        const v = Math.max(0, Math.min(0xFFFF, Math.round(value))) & 0xFFFF;
+        // Live actions (macro play, autoscroll force-stop) must not be re-sent
+        // on a slow echo: the retry would fire the action twice.
+        // `line` is set per connect (main.js); the ids are ZMK-line ids.
+        const live = this.line !== 'qmk'
+            && ((channel === CH_ZMK.macros && valueID === V.macrosState)
+                || (channel === CH_ZMK.autoscroll && valueID === V.asState));
+        const r = await this.hid.request([CMD.set, channel, valueID, v >> 8, v & 0xFF], 0,
+            live ? { retries: 0 } : undefined);
+        if (r[0] !== CMD.set) throw new Error('unhandled');
+        return this._u16(r);
+    }
+
+    async setI16(channel, valueID, value) {
+        if (!Number.isFinite(value)) throw new RangeError(`setI16: ${value} is not a number`);
+        const wire = Math.max(-0x8000, Math.min(0x7FFF, Math.round(value))) & 0xFFFF;
+        const r = await this.hid.request([CMD.set, channel, valueID, wire >> 8, wire & 0xFF]);
+        if (r[0] !== CMD.set) throw new Error('unhandled');
+        return (this._u16(r) << 16) >> 16;
+    }
+
+    async save(channel) {
+        // QMK line: 0x28 is the corner-chord block. Its SETs persist
+        // themselves and a channel SAVE rewrites ~1.9 KB with XIP off, which
+        // hard-wedged the Svalboard (2026-08-14). Only the ZMK line (0x28 =
+        // tapDance) may save it; `line` is set per connect in main.js and an
+        // unset line refuses too (fail-safe).
+        if (channel === CH_QMK.corner && this.line !== 'zmk') {
+            throw new Error('refused: never SAVE channel 0x28 on the QMK line');
+        }
+        // Saves run flash writes device-side and the echo arrives only when
+        // they land — a mass slot delete can legitimately take seconds
+        // (bench 5: the 500 ms timeout fired, the RETRY then bounced off
+        // the firmware's one-save-in-flight guard and echoed unhandled).
+        // Wait patiently, never retry a save.
+        const r = await this.hid.request([CMD.save, channel, 0], 0,
+            { timeoutMs: 6000, retries: 0 });
+        if (r[0] !== CMD.save) throw new Error('unhandled');
+    }
+
+    /** Payload-addressed GET (RGB map led, combo/macro slots). Returns
+     * frame bytes 3+. `echoBytes` = how many leading payload bytes the reply
+     * must echo (the frame's address prefix) — pass it for every slot-table
+     * frame so a stale late reply for another slot can't be adopted. */
+    async getBytes(channel, valueID, payload, echoBytes = 0) {
+        const r = await this.hid.request([CMD.get, channel, valueID, ...payload], echoBytes);
+        if (r[0] !== CMD.get) throw new Error('unhandled');
+        return r.slice(3);
+    }
+
+    /** Payload-addressed SET (RGB paint/fill, combo/macro slots). Returns
+     * the echoed payload — the firmware answers in place with what actually
+     * stuck (normalized slots), and the ZMK combo/macro tabs adopt that
+     * echo. `echoBytes` as in getBytes. */
+    async setBytes(channel, valueID, payload, echoBytes = 0) {
+        const r = await this.hid.request([CMD.set, channel, valueID, ...payload], echoBytes);
+        if (r[0] !== CMD.set) throw new Error('unhandled');
+        return r.slice(3);
+    }
+
+    /** Flask handshake: protocol version, or null if the firmware has no
+     * Flask surface. */
+    async handshake() {
+        try {
+            return await this.getU16(CH_ZMK.meta, V.metaProtocolVersion);
+        } catch {
+            return null; // timeout or unhandled → no Flask surface
+        }
+    }
+}

@@ -1,21 +1,16 @@
 import * as P from './protocol.js';
+import { $, h } from './dom.js';
+import { initKeymap, keymapStatus, keymapDown, STUDIO_GATT_SERVICE } from './keymap.js';
 import { KEY_GROUPS, asciiKey, keyLabel } from './keys.js';
 import { ICON_NAMES, icon } from './icons.js';
 import { GESTURES, COLORS, defaultConfig, cleanConfig, importAny, migrate, classifyMulti, classifyPinch } from './config.js';
 
-const $ = (s) => document.querySelector(s);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const hex = (b) => [...b].map((x) => x.toString(16).padStart(2, '0')).join(' ');
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage blocked */ } },
 };
-function h(tag, attrs = {}, ...kids) {
-  const e = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) k.startsWith('on') ? e.addEventListener(k.slice(2), v) : k in e ? (e[k] = v) : e.setAttribute(k, v);
-  e.append(...kids.flat().filter((x) => x != null));
-  return e;
-}
 
 // ---------- link (BLE or demo) and serialized GATT ops ----------
 let link = null, status = null, textFree = 0;
@@ -51,7 +46,7 @@ const refreshStatus = () => link && run(async () => onStatus(await link.read()))
 function onStatus(bytes) {
   status = P.decodeStatus(bytes);
   textFree = status.textFree;
-  renderStatus(); pump();
+  renderStatus(); keymapStatus(status); pump();
 }
 
 // ---------- one FIFO for text, key taps, deck steps, gesture actions ----------
@@ -159,7 +154,7 @@ function afterConnect() {
 async function connectBle() {
   if (!navigator.bluetooth) return setState('No Web Bluetooth here. Use Chrome (desktop/Android) or Bluefy on iPhone.', 'err');
   try {
-    device = await navigator.bluetooth.requestDevice({ filters: [{ namePrefix: 'Totem' }], optionalServices: [P.SERVICE] });
+    device = await navigator.bluetooth.requestDevice({ filters: [{ namePrefix: 'Totem' }], optionalServices: [P.SERVICE, STUDIO_GATT_SERVICE] });
     device.addEventListener('gattserverdisconnected', onGattDisc);
     await openBle(device);
   } catch (e) { link = null; setState(String(e.message || e), 'err'); }
@@ -176,13 +171,14 @@ async function reconnect(tries = 3) {
 
 function onGattDisc() {
   if (!link || link.kind !== 'ble') return;
-  link = null; stopLoops(); resetLocal(); unwake(); $('#connect').textContent = 'Connect';
+  link = null; keymapDown(); stopLoops(); resetLocal(); unwake(); $('#connect').textContent = 'Connect';
   $('#statusbar').hidden = true; setState('Disconnected', 'err');
   if (wasConnected && !userDisc && document.visibilityState === 'visible') reconnect();
 }
 
 async function disconnect() {
   userDisc = true; wasConnected = false;
+  keymapDown();
   await releaseAll();
   link?.disconnect(); link = null; stopLoops(); unwake(); status = null;
   $('#connect').textContent = 'Connect'; $('#demo').textContent = 'Demo'; $('#statusbar').hidden = true;
@@ -242,6 +238,7 @@ async function releaseAll() {
 async function goHidden() {
   if (!link) return;
   const l = link;
+  if (l.kind === 'ble') keymapDown();
   await releaseAll();
   unwake();
   if (l.kind === 'ble') { link = null; stopLoops(); l.disconnect(); }
@@ -503,6 +500,7 @@ $('#json-import').onclick = () => {
   catch (e) { $('#json-msg').textContent = 'Import failed: ' + e.message; }
 };
 renderDeck();
+initKeymap({ getDevice: () => (link?.kind === 'ble' ? device : null), getStatus: () => status, isDemo: () => link?.kind === 'demo' });
 
 // ---------- bottom toolbar, sheets, expandable pad ----------
 $('#nb-keys').onclick = () => { $('#keys').hidden = !$('#keys').hidden; }; // in the layout flow: the deck shrinks, the pad stays visible

@@ -67,3 +67,21 @@ dialog textarea{width:100%;font:12px ui-monospace,Menlo,monospace}
 .swatches{display:flex;gap:8px}.sw{width:40px;height:40px;min-height:40px;padding:0;border-radius:12px;background:var(--fill);border:2px solid transparent}.sw.on{border-color:var(--fg);background:var(--fill)}
 .icons{display:grid;grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:6px}.icons button{min-height:44px;padding:0;display:flex;align-items:center;justify-content:center}.icons svg{width:24px;height:24px}
 #keys{flex:none;display:flex;flex-direction:column;gap:8px;max-height:38dvh;overflow-y:auto;background:var(--card);border-radius:16px;padding:8px}
+
+dialog.tall{height:92dvh}
+nav button{padding:0 6px;font-size:15px}
+.chip.warn{background:var(--wait);color:#000}
+#km-msg,#pk-msg,#pk-current{font-size:13px;color:var(--mut);margin:0}
+#km-layers{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}#km-layers button{flex:none}
+#km-layerops{flex-wrap:wrap}#km-layerops button{flex:1}
+#km-board{flex:none}
+svg.kb{width:100%;height:auto;display:block;touch-action:manipulation}
+svg.kb g{cursor:pointer}
+svg.kb .kr{fill:var(--card2);stroke:var(--card2)}svg.kb .kr.dim{fill:transparent;stroke:var(--card2)}svg.kb .kr.hold{fill:var(--blue-fill);stroke:var(--blue-fill)}
+svg.kb g:active .kr{fill:var(--acc)}
+svg.kb text{text-anchor:middle;fill:var(--fg);pointer-events:none;font-family:inherit}
+svg.kb .km{font-size:40px}svg.kb .kt{font-size:25px;fill:var(--mut)}svg.kb .kr.dim~.km{fill:var(--mut)}
+#pk-preview{font-weight:600;min-height:1.3em}
+#pk-params{display:flex;flex-direction:column;gap:8px}#pk-params .desc{font-size:13px;color:var(--mut)}
+#pk-list h4{margin:10px 0 4px;font-size:13px;color:var(--mut);font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:6px}.chips button.small{min-height:40px}

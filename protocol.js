@@ -5,6 +5,8 @@ export const CHARS = {
   mouse: '7e4e0002' + B, key: '7e4e0003' + B, text: '7e4e0004' + B,
   control: '7e4e0005' + B, status: '7e4e0006' + B,
 };
+// Phase 2: Flask tunnel (one 32-byte raw-HID frame per write, 32-byte notify reply, needs MTU >= 35). Not in CHARS so older firmware still connects.
+export const TUNNEL_CHAR = '7e4e0007' + B;
 export const BTN = { left: 1, right: 2, middle: 4, back: 8, forward: 16 };
 export const MOD = { LCTRL: 1, LSHIFT: 2, LALT: 4, LGUI: 8, RCTRL: 16, RSHIFT: 32, RALT: 64, RGUI: 128 };
 export const PAGE = { KEYBOARD: 0x07, CONSUMER: 0x0c };
@@ -57,7 +59,7 @@ export function decodeStatus(bytes) {
   const v = new DataView(b.buffer);
   const s = {
     version: b[0],
-    remoteEnabled: !!(b[1] & 1), usbConnected: !!(b[1] & 2), typing: !!(b[1] & 4), pairingOpen: !!(b[1] & 8),
+    remoteEnabled: !!(b[1] & 1), usbConnected: !!(b[1] & 2), typing: !!(b[1] & 4), pairingOpen: !!(b[1] & 8), configOpen: !!(b[1] & 16),
     numLock: !!(b[2] & 1), capsLock: !!(b[2] & 2), scrollLock: !!(b[2] & 4),
     textFree: v.getUint16(3, true),
     features: b[5],
@@ -66,6 +68,6 @@ export function decodeStatus(bytes) {
     battRight: n >= 9 ? b[8] : 0xff,
   };
   s.hasText = !!(b[5] & 1); s.hasConsumer = !!(b[5] & 2); s.hasHwheel = !!(b[5] & 4);
-  s.hasOutput = !!(b[5] & 8); s.hasBatteries = !!(b[5] & 32);
+  s.hasOutput = !!(b[5] & 8); s.hasBatteries = !!(b[5] & 32); s.hasConfig = !!(b[5] & 64);
   return s;
 }

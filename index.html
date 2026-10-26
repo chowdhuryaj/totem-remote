@@ -60,11 +60,33 @@
 
 <nav>
   <button id="nb-keys">Keyboard</button>
+  <button id="nb-km">Keymap</button>
   <button id="nb-gest">Gestures</button>
   <button id="nb-set">Settings</button>
 </nav>
 
 
+
+<dialog id="km" class="sheet tall">
+  <div class="row"><b class="grow">Keymap</b><span id="km-cfg" class="chip" hidden></span><span id="km-unsaved" class="chip warn" hidden>unsaved</span><button id="km-close" class="small">Close</button></div>
+  <div id="km-msg"></div>
+  <div class="row"><button id="km-connect" class="primary grow">Connect to keyboard</button></div>
+  <div id="km-layers"></div>
+  <div id="km-layerops" class="row" hidden><button id="km-rename" class="small">Rename</button><button id="km-add" class="small">Add</button><button id="km-remove" class="small">Remove</button><button id="km-up" class="small">Up</button><button id="km-down" class="small">Down</button></div>
+  <div id="km-board"></div>
+  <div id="km-actions" class="row" hidden><button id="km-save" class="primary grow">Save changes</button><button id="km-discard" class="grow">Discard</button></div>
+</dialog>
+
+<dialog id="picker" class="sheet tall">
+  <div class="row"><b id="pk-title" class="grow"></b></div>
+  <div id="pk-current"></div>
+  <div id="pk-preview"></div>
+  <div id="pk-params"></div>
+  <div class="row"><button id="pk-apply" class="primary grow">Apply</button><button id="pk-cancel" class="grow">Cancel</button></div>
+  <p id="pk-msg"></p>
+  <input id="pk-search" type="search" placeholder="Search keys and behaviors" autocomplete="off" spellcheck="false">
+  <div id="pk-list"></div>
+</dialog>
 
 <dialog id="gests" class="sheet">
   <div class="row"><b id="gesthost" class="grow"></b><button data-close>Close</button></div>
