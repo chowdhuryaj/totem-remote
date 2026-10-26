@@ -82,3 +82,13 @@ test('gesture classification', () => {
   assert.equal(classifyPinch(100, 110, 5), null);
   assert.equal(classifyPinch(100, 160, 100), null);
 });
+
+import { ICONS } from './icons.js';
+test('workstation sample page is placeholder-only and icons exist', () => {
+  const c = defaultConfig(), page = c.profiles.Workstation.pages[0];
+  assert.equal(page.name, 'Reading');
+  assert.deepEqual(page.buttons.map((b) => b.label), ['Dictate', 'Sign', 'Next', 'Normal CT', 'Normal CXR', 'Impression', 'Zoom', 'W/L', 'Layout']);
+  assert.ok(page.buttons.every((b) => b.placeholder));
+  for (const h of HOSTS) for (const p of c.profiles[h].pages) for (const b of p.buttons) assert.ok(ICONS[b.icon], b.icon);
+  assert.ok(Object.keys(ICONS).length >= 40);
+});

@@ -7,13 +7,22 @@ export const GESTURES = [
   ['pinchIn', 'Pinch in'], ['pinchOut', 'Pinch out'], ['tap3', '3-finger tap'],
 ];
 const C = 1, S = 2, A = 4, G = 8; // Ctrl, Shift, Alt, Cmd/Win
-const act = (label, mods, usage, page = 7) => ({ label, steps: [{ t: 'key', mods, page, usage }] });
-const media = () => [act('Play / Pause', 0, 0xcd, 0xc), act('Vol +', 0, 0xe9, 0xc), act('Vol -', 0, 0xea, 0xc), act('Mute', 0, 0xe2, 0xc)];
+export const COLORS = ['purple', 'teal', 'coral', 'blue', 'amber', 'gray'];
+const act = (label, mods, usage, page = 7, icon = 'apps', color = 'gray', extra = {}) => ({ label, icon, color, ...extra, steps: [{ t: 'key', mods, page, usage }] });
+const media = () => [act('Play / Pause', 0, 0xcd, 0xc, 'player-play', 'teal'), act('Vol +', 0, 0xe9, 0xc, 'volume-2', 'teal'), act('Vol -', 0, 0xea, 0xc, 'volume', 'teal'), act('Mute', 0, 0xe2, 0xc, 'volume-off', 'teal')];
+// Placeholder: F13-F24 with no modifiers. The real shortcuts are the user's to set; "set me" shows on the tile until edited.
+const ph = (label, icon, color, f) => act(label, 0, 0x68 + f, 7, icon, color, { placeholder: true });
 
 function defaultProfile(host) {
   const mac = host === 'Mac', m = mac ? G : C, n = mac ? 'Cmd+' : 'Ctrl+';
-  const main = [...media(), act(n + 'C', m, 6), act(n + 'V', m, 0x19), mac ? act('Cmd+Tab', G, 0x2b) : act('Alt+Tab', A, 0x2b)];
-  const edit = [['X', 0x1b], ['Z', 0x1d], ['A', 4], ['S', 0x16], ['F', 9], ['W', 0x1a]].map(([k, u]) => act(n + k, m, u));
+  const main = [...media(), act(n + 'C', m, 6, 7, 'copy', 'blue'), act(n + 'V', m, 0x19, 7, 'clipboard', 'blue'), mac ? act('Cmd+Tab', G, 0x2b, 7, 'app-window', 'purple') : act('Alt+Tab', A, 0x2b, 7, 'app-window', 'purple')];
+  const edit = [['X', 0x1b, 'cut'], ['Z', 0x1d, 'arrows-shuffle'], ['A', 4, 'check'], ['S', 0x16, 'file-text'], ['F', 9, 'search'], ['W', 0x1a, 'x']].map(([k, u, i]) => act(n + k, m, u, 7, i, 'gray'));
+  const pages = [{ name: 'Main', buttons: main }, { name: 'Edit', buttons: edit }];
+  if (!mac) pages.unshift({ name: 'Reading', buttons: [
+    ph('Dictate', 'microphone', 'purple', 0), ph('Sign', 'signature', 'teal', 1), ph('Next', 'player-track-next', 'coral', 2),
+    ph('Normal CT', 'template', 'blue', 3), ph('Normal CXR', 'template', 'blue', 4), ph('Impression', 'forms', 'amber', 5),
+    ph('Zoom', 'zoom-in', 'gray', 6), ph('W/L', 'contrast', 'gray', 7), ph('Layout', 'layout-grid', 'gray', 8),
+  ] });
   const gestures = mac ? {
     swipe3L: act('Space left', C, 0x50), swipe3R: act('Space right', C, 0x4f),
     swipe3U: act('Mission Control', C, 0x52), swipe3D: act('App Expose', C, 0x51),
@@ -25,7 +34,7 @@ function defaultProfile(host) {
     swipe4U: act('Task view', G, 0x2b), swipe4D: act('Show desktop', G, 7),
     pinchIn: act('Zoom out', C, 0x2d), pinchOut: act('Zoom in', C, 0x2e), tap3: act('Search', G, 0x16),
   };
-  return { pages: [{ name: 'Main', buttons: main }, { name: 'Edit', buttons: edit }], gestures };
+  return { pages, gestures };
 }
 export const defaultConfig = () => ({ version: 2, override: null, profiles: { Mac: defaultProfile('Mac'), Workstation: defaultProfile('Workstation') } });
 
@@ -34,6 +43,9 @@ const ascii = (s) => [...String(s ?? '')].filter((c) => (c >= ' ' && c <= '~') |
 export function cleanAction(b) {
   return {
     label: String(b?.label ?? '').slice(0, 40),
+    ...(typeof b?.icon === 'string' && b.icon ? { icon: b.icon.slice(0, 40) } : {}),
+    ...(COLORS.includes(b?.color) ? { color: b.color } : {}),
+    ...(b?.placeholder === true ? { placeholder: true } : {}),
     steps: (Array.isArray(b?.steps) ? b.steps : []).flatMap((s) =>
       s?.t === 'key' ? [{ t: 'key', mods: int(s.mods, 0, 255), page: s.page === 0x0c ? 0x0c : 7, usage: int(s.usage, 0, 0xffff) }]
       : s?.t === 'text' ? [{ t: 'text', text: ascii(s.text) }]

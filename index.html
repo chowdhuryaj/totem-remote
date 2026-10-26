@@ -13,73 +13,73 @@
 <body>
 <header>
   <div class="row">
-    <button id="connect" class="primary">Connect</button>
-    <button id="demo">Demo</button>
-    <span id="state" class="grow">Not connected</span>
+    <div id="hostsw" class="seg"><button data-host="Workstation">Workstation</button><button data-host="Mac">Mac</button></div>
+    <span id="auto" class="chip">auto</span>
+    <span class="grow"></span>
+    <button id="connect" class="small primary">Connect</button>
   </div>
-  <div class="row" id="statusbar" hidden>
-    <button id="out" title="Toggle output">Out: -</button>
-    <span id="caps" class="pill" hidden>CAPS</span>
-    <span id="batt" class="pill grow"></span>
+  <div id="statusline" class="row">
+    <span id="dot"></span>
+    <span id="state" class="grow">Not connected</span>
+    <span id="statusbar" class="row" hidden>
+      <button id="out" class="chip" title="Toggle output"></button>
+      <span id="caps" class="chip" hidden>CAPS</span>
+      <span id="batt" class="chip" hidden></span>
+    </span>
   </div>
 </header>
 
 <main>
-  <section id="tab-pad" class="panel">
+  <section id="deckarea">
+    <div id="pagerow" class="row">
+      <span id="pagename" class="grow"></span>
+      <span id="pageinfo"></span>
+      <span id="dots"></span>
+      <button id="deck-edit" class="small">Edit</button>
+    </div>
+    <div id="pageops" class="row" hidden></div>
+    <div id="deck"></div>
+  </section>
+
+  <section id="padbox">
+    <button id="padhandle">Expand trackpad</button>
     <div id="padwrap">
       <div id="pad"><span class="hint">trackpad</span></div>
       <div id="strip"><span class="hint">scroll</span></div>
     </div>
-    <div class="row pad-opts">
-      <label class="grow">Speed <input id="speed" type="range" min="0.5" max="4" step="0.1"></label>
-      <label><input id="natural" type="checkbox"> Natural scroll</label>
-    </div>
   </section>
-
-  <section id="tab-keys" class="panel" hidden>
-    <button id="kbd" class="big">Open keyboard</button>
-    <input id="hidden" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Keyboard capture">
-    <div class="grid mods" id="mods"></div>
-    <div class="grid" id="special"></div>
-  </section>
-
-  <section id="tab-deck" class="panel" hidden>
-    <div class="row"><select id="host"><option value="">Auto</option><option>Mac</option><option>Workstation</option></select><span id="hostname" class="grow"></span></div>
-    <div class="row" id="pages"></div>
-    <div class="row">
-      <button id="deck-edit">Edit</button>
-      <button id="deck-add" hidden>+ Add</button>
-      <button id="deck-json">JSON</button>
-    </div>
-    <div class="grid deck" id="deck"></div>
-  </section>
-
-  <section id="tab-gest" class="panel" hidden>
-    <div id="gesthost"></div>
-    <div class="grid" id="gest"></div>
-  </section>
-
-  <pre id="log" hidden></pre>
 </main>
 
 <nav>
-  <button data-tab="pad" class="on">Pad</button>
-  <button data-tab="keys">Keys</button>
-  <button data-tab="deck">Deck</button>
-  <button data-tab="gest">Gest</button>
+  <button id="nb-keys">Keyboard</button>
+  <button id="nb-gest">Gestures</button>
+  <button id="nb-set">Settings</button>
 </nav>
 
-<dialog id="editor"></dialog>
-<dialog id="jsond">
-  <h3>Deck JSON</h3>
-  <textarea id="jsonta" rows="12" spellcheck="false"></textarea>
-  <div class="row">
-    <button id="json-import" class="primary">Import (replace)</button>
-    <button id="json-reset">Reset defaults</button>
-    <button id="json-close">Close</button>
-  </div>
-  <p id="json-msg"></p>
+<dialog id="keys" class="sheet">
+  <div class="row"><button id="kbd" class="primary grow">Open keyboard</button><button data-close>Close</button></div>
+  <input id="hidden" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Keyboard capture">
+  <div class="grid mods" id="mods"></div>
+  <div class="grid" id="special"></div>
 </dialog>
+
+<dialog id="gests" class="sheet">
+  <div class="row"><b id="gesthost" class="grow"></b><button data-close>Close</button></div>
+  <div class="grid" id="gest"></div>
+</dialog>
+
+<dialog id="settings" class="sheet">
+  <div class="row"><b class="grow">Settings</b><button data-close>Close</button></div>
+  <label class="field">Pointer speed <input id="speed" type="range" min="0.5" max="4" step="0.1"></label>
+  <label class="field"><input id="natural" type="checkbox"> Natural scroll</label>
+  <div class="row"><button id="demo" class="grow">Demo</button></div>
+  <textarea id="jsonta" rows="8" spellcheck="false" placeholder="Deck JSON (export, or paste to import)"></textarea>
+  <div class="row"><button id="json-export">Export</button><button id="json-import" class="primary">Import (replace)</button><button id="json-reset">Reset</button></div>
+  <p id="json-msg"></p>
+  <pre id="log" hidden></pre>
+</dialog>
+
+<dialog id="editor" class="sheet"></dialog>
 <script type="module" src="app.js"></script>
 </body>
 </html>

@@ -1,6 +1,7 @@
 import * as P from './protocol.js';
 import { KEY_GROUPS, asciiKey, keyLabel } from './keys.js';
-import { GESTURES, defaultConfig, cleanConfig, importAny, migrate, classifyMulti, classifyPinch } from './config.js';
+import { ICON_NAMES, icon } from './icons.js';
+import { GESTURES, COLORS, defaultConfig, cleanConfig, importAny, migrate, classifyMulti, classifyPinch } from './config.js';
 
 const $ = (s) => document.querySelector(s);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -21,7 +22,11 @@ let link = null, status = null, textFree = 0;
 let wasConnected = false, device = null, userDisc = false, running = false;
 let tail = Promise.resolve(), inflight = 0;
 
-function setState(msg, cls = '') { const s = $('#state'); s.textContent = msg; s.className = cls; }
+function setState(msg, cls = '') {
+  const s = $('#state'); s.textContent = msg; s.className = cls;
+  // dot: green connected, amber connecting/pairing, gray otherwise
+  $('#dot').className = cls === 'ok' ? 'ok' : /^(Connecting|Enter the code|Reconnecting)/.test(msg) ? 'wait' : '';
+}
 function log(kind, bytes) {
   const el = $('#log'); el.append(`${kind.padEnd(7)}${hex(bytes)}\n`);
   while (el.childNodes.length > 300) el.firstChild.remove();
@@ -199,7 +204,7 @@ let autoHost = 'Mac';
 function renderStatus() {
   if (!status) return;
   $('#statusbar').hidden = false;
-  const o = $('#out'); o.textContent = 'Out: ' + (status.output === 2 ? 'BLE' : status.output === 1 ? 'USB' : '?');
+  const o = $('#out'); o.textContent = status.output === 2 ? 'BLE' : status.output === 1 ? 'USB' : '?';
   o.hidden = !status.hasOutput;
   $('#caps').hidden = !status.capsLock;
   const b = [];
@@ -377,38 +382,60 @@ inp.addEventListener('compositionstart', () => { composing = true; });
 inp.addEventListener('compositionend', () => { composing = false; const v = inp.value; inp.value = ''; typeText(v); });
 inp.addEventListener('input', () => { if (composing) return; const v = inp.value; inp.value = ''; if (v) typeText(v); });
 
+// ---------- host switch ----------
+function renderHost() {
+  for (const b of $('#hostsw').children) b.classList.toggle('on', b.dataset.host === host());
+  $('#auto').hidden = !!cfg.override;
+}
+for (const b of $('#hostsw').children) b.onclick = () => { cfg.override = cfg.override === b.dataset.host ? null : b.dataset.host; saveCfg(); renderDeck(); };
+
 // ---------- stream deck (pages per host) ----------
 const stepSummary = (s) => s.t === 'key' ? `${[[1, 'Ctrl'], [2, 'Shift'], [4, 'Alt'], [8, 'Cmd/Win']].filter(([b]) => s.mods & b).map(([, n]) => n + '+').join('')}${keyLabel(s.page, s.usage)}` : s.t === 'text' ? `"${s.text}"` : `${s.ms}ms`;
 const stepsTitle = (a) => a.steps.map(stepSummary).join(', ');
-let swiped = false;
+let swiped = false, lp = 0, lpFired = false, sx = null, sy0 = null;
+
+function editTile(b, i, page) {
+  openEditor(b, { tile: true, onSave: (d) => { page.buttons[i] = d; }, onDelete: () => page.buttons.splice(i, 1), onMove: (dl) => swap(page.buttons, i, dl) });
+}
+function tileEl(b, i, page) {
+  const el = h('button', { className: 'tile', title: stepsTitle(b) },
+    h('span', { className: 'ico', innerHTML: icon(b.icon) }),
+    h('span', { className: 'lbl', textContent: b.label || '(blank)' }),
+    b.placeholder ? h('span', { className: 'ph', textContent: 'set me' }) : null);
+  el.dataset.c = b.color || 'gray';
+  el.addEventListener('pointerdown', () => { lpFired = false; clearTimeout(lp); lp = setTimeout(() => { lpFired = true; editTile(b, i, page); }, 500); });
+  el.addEventListener('pointermove', (e) => { if (Math.hypot(e.clientX - sx, e.clientY - sy0) > 10) clearTimeout(lp); });
+  for (const t of ['pointerup', 'pointercancel', 'pointerleave']) el.addEventListener(t, () => clearTimeout(lp));
+  el.onclick = () => { if (swiped || lpFired) { lpFired = false; return; } editing ? editTile(b, i, page) : runSteps(b.steps); };
+  return el;
+}
 
 function renderDeck() {
   const p = profile(); pageIdx = Math.max(0, Math.min(pageIdx, p.pages.length - 1));
-  $('#host').value = cfg.override || ''; $('#hostname').textContent = host() + (cfg.override ? '' : ' (auto)');
-  const page = p.pages[pageIdx];
-  $('#deck').replaceChildren(...page.buttons.map((b, i) => h('button', {
-    textContent: b.label || '(blank)', title: stepsTitle(b),
-    onclick: () => { if (swiped) return; editing ? openEditor(b, { onSave: (d) => { page.buttons[i] = d; }, onDelete: () => page.buttons.splice(i, 1), onMove: (dl) => swap(page.buttons, i, dl) }) : runSteps(b.steps); },
-  })));
-  $('#pages').replaceChildren(
-    ...p.pages.map((pg, i) => h('button', { textContent: pg.name, className: i === pageIdx ? 'on' : '', onclick: () => { pageIdx = i; renderDeck(); } })),
-    ...(editing ? [
-      h('button', { textContent: '+Page', onclick: () => { p.pages.push({ name: 'Page ' + (p.pages.length + 1), buttons: [] }); pageIdx = p.pages.length - 1; saveCfg(); renderDeck(); } }),
-      h('button', { textContent: 'Rename', onclick: () => { const n = prompt('Page name', page.name); if (n) { page.name = n.slice(0, 20); saveCfg(); renderDeck(); } } }),
-      h('button', { textContent: 'DelPage', onclick: () => { if (p.pages.length > 1 && confirm('Delete page ' + page.name + '?')) { p.pages.splice(pageIdx, 1); saveCfg(); renderDeck(); } } }),
-    ] : []));
-  $('#deck-edit').classList.toggle('on', editing); $('#deck-add').hidden = !editing;
+  renderHost();
+  const page = p.pages[pageIdx], n = p.pages.length;
+  const tiles = page.buttons.map((b, i) => tileEl(b, i, page));
+  if (editing) {
+    const add = h('button', { className: 'tile add', onclick: () => openEditor({ label: '', icon: 'apps', color: 'gray', steps: [{ t: 'key', mods: 0, page: 7, usage: 4 }] }, { tile: true, onSave: (d) => page.buttons.push(d) }) },
+      h('span', { className: 'ico', innerHTML: icon('apps') }), h('span', { className: 'lbl', textContent: 'Add' }));
+    tiles.push(add);
+  }
+  $('#deck').replaceChildren(...tiles);
+  $('#deck').classList.toggle('editing', editing);
+  $('#pagename').textContent = page.name;
+  $('#pageinfo').textContent = `page ${pageIdx + 1} of ${n}`;
+  $('#dots').replaceChildren(...p.pages.map((_, i) => h('span', { className: i === pageIdx ? 'on' : '', onclick: () => { pageIdx = i; renderDeck(); } })));
+  $('#pageops').hidden = !editing;
+  $('#pageops').replaceChildren(
+    h('button', { textContent: '+Page', onclick: () => { p.pages.push({ name: 'Page ' + (n + 1), buttons: [] }); pageIdx = n; saveCfg(); renderDeck(); } }),
+    h('button', { textContent: 'Rename', onclick: () => { const nm = prompt('Page name', page.name); if (nm) { page.name = nm.slice(0, 20); saveCfg(); renderDeck(); } } }),
+    h('button', { textContent: 'DelPage', onclick: () => { if (n > 1 && confirm('Delete page ' + page.name + '?')) { p.pages.splice(pageIdx, 1); saveCfg(); renderDeck(); } } }));
+  $('#deck-edit').classList.toggle('on', editing);
   renderGest();
 }
 function swap(arr, i, dl) { const j = i + dl; if (j >= 0 && j < arr.length) [arr[i], arr[j]] = [arr[j], arr[i]]; }
 $('#deck-edit').onclick = () => { editing = !editing; renderDeck(); };
-$('#deck-add').onclick = () => {
-  const page = profile().pages[pageIdx];
-  openEditor({ label: '', steps: [{ t: 'key', mods: 0, page: 7, usage: 4 }] }, { onSave: (d) => page.buttons.push(d) });
-};
-$('#host').onchange = (e) => { cfg.override = e.target.value || null; saveCfg(); renderDeck(); };
 // swipe the deck left/right to change page
-let sx = null, sy0 = null;
 $('#deck').addEventListener('pointerdown', (e) => { sx = e.clientX; sy0 = e.clientY; });
 $('#deck').addEventListener('pointerup', (e) => {
   if (sx == null) return;
@@ -428,15 +455,17 @@ function renderGest() {
   $('#gesthost').textContent = 'Gestures for ' + host();
 }
 
-// ---------- editor (deck buttons and gesture actions) ----------
+// ---------- editor (deck tiles and gesture actions) ----------
 const editor = $('#editor');
-function openEditor(src, { onSave, onDelete, onMove }) {
+function openEditor(src, { tile, onSave, onDelete, onMove }) {
   const draft = structuredClone(src);
   const done = () => { saveCfg(); renderDeck(); editor.close(); };
   const draw = () => {
     const move = (a, dlt) => { const j = a + dlt; if (j < 0 || j >= draft.steps.length) return; [draft.steps[a], draft.steps[j]] = [draft.steps[j], draft.steps[a]]; draw(); };
     editor.replaceChildren(
       h('input', { value: draft.label, placeholder: 'Label', oninput: (e) => { draft.label = e.target.value; } }),
+      tile ? h('div', { className: 'swatches' }, ...COLORS.map((c) => { const b = h('button', { className: 'sw' + (draft.color === c ? ' on' : ''), title: c, onclick: () => { draft.color = c; draw(); } }); b.dataset.c = c; return b; })) : null,
+      tile ? h('div', { className: 'icons' }, ...ICON_NAMES.map((n) => h('button', { className: n === draft.icon ? 'on' : '', title: n, innerHTML: icon(n), onclick: () => { draft.icon = n; draw(); } }))) : null,
       ...draft.steps.map((s, i) => h('div', { className: 'step' },
         h('div', { className: 'row' },
           h('select', { value: s.t, onchange: (e) => { draft.steps[i] = { key: { t: 'key', mods: 0, page: 7, usage: 4 }, text: { t: 'text', text: '' }, delay: { t: 'delay', ms: 100 } }[e.target.value]; draw(); } },
@@ -455,26 +484,28 @@ function openEditor(src, { onSave, onDelete, onMove }) {
         onMove ? h('button', { textContent: 'Left', onclick: () => { onMove(-1); done(); } }) : null,
         onMove ? h('button', { textContent: 'Right', onclick: () => { onMove(1); done(); } }) : null),
       h('div', { className: 'row' },
-        h('button', { className: 'primary', textContent: 'Save', onclick: () => { onSave(draft); done(); } }),
+        h('button', { className: 'primary', textContent: 'Save', onclick: () => { delete draft.placeholder; onSave(draft); done(); } }),
         onDelete ? h('button', { textContent: 'Delete', onclick: () => { onDelete(); done(); } }) : null,
         h('button', { textContent: 'Cancel', onclick: () => editor.close() })));
   };
   draw(); editor.showModal();
 }
 
-// ---------- JSON export / import (everything, version 2; old single-deck arrays still import) ----------
-const jd = $('#jsond');
-$('#deck-json').onclick = () => { $('#jsonta').value = JSON.stringify(cfg, null, 1); $('#json-msg').textContent = ''; jd.showModal(); };
-$('#json-close').onclick = () => jd.close();
-$('#json-reset').onclick = () => { cfg = defaultConfig(); saveCfg(); renderDeck(); $('#jsonta').value = JSON.stringify(cfg, null, 1); };
+// ---------- settings: JSON export / import (everything, version 2; old single-deck arrays still import) ----------
+$('#json-export').onclick = () => { $('#jsonta').value = JSON.stringify(cfg, null, 1); $('#json-msg').textContent = 'Exported below. Copy it.'; };
+$('#json-reset').onclick = () => { cfg = defaultConfig(); saveCfg(); renderDeck(); $('#jsonta').value = JSON.stringify(cfg, null, 1); $('#json-msg').textContent = 'Reset to defaults.'; };
 $('#json-import').onclick = () => {
   try { cfg = importAny(JSON.parse($('#jsonta').value), cfg, host()); pageIdx = 0; saveCfg(); renderDeck(); $('#json-msg').textContent = 'Imported.'; }
   catch (e) { $('#json-msg').textContent = 'Import failed: ' + e.message; }
 };
 renderDeck();
 
-// ---------- tabs ----------
-for (const b of document.querySelectorAll('nav button')) b.onclick = () => {
-  for (const x of document.querySelectorAll('nav button')) x.classList.toggle('on', x === b);
-  for (const p of document.querySelectorAll('.panel')) p.hidden = p.id !== 'tab-' + b.dataset.tab;
+// ---------- bottom toolbar, sheets, expandable pad ----------
+$('#nb-keys').onclick = () => ($('#keys').open ? $('#keys').close() : $('#keys').show()); // non-modal so the pad stays usable
+$('#nb-gest').onclick = () => $('#gests').showModal();
+$('#nb-set').onclick = () => { $('#settings').showModal(); };
+for (const b of document.querySelectorAll('[data-close]')) b.onclick = () => b.closest('dialog').close();
+$('#padhandle').onclick = () => {
+  const full = document.body.classList.toggle('full');
+  $('#padhandle').textContent = full ? 'Collapse trackpad' : 'Expand trackpad';
 };
