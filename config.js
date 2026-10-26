@@ -47,7 +47,7 @@ export function cleanAction(b) {
     ...(COLORS.includes(b?.color) ? { color: b.color } : {}),
     ...(b?.placeholder === true ? { placeholder: true } : {}),
     steps: (Array.isArray(b?.steps) ? b.steps : []).flatMap((s) =>
-      s?.t === 'key' ? [{ t: 'key', mods: int(s.mods, 0, 255), page: s.page === 0x0c ? 0x0c : 7, usage: int(s.usage, 0, 0xffff) }]
+      s?.t === 'key' ? [{ t: 'key', mods: int(s.mods, 0, 255), page: s.page === 0x0c ? 0x0c : 7, usage: int(s.usage, 0, s.page === 0x0c ? 0xfff : 0xff) }] // the dongle's ranges
       : s?.t === 'text' ? [{ t: 'text', text: ascii(s.text) }]
       : s?.t === 'delay' ? [{ t: 'delay', ms: int(s.ms, 0, 10000) }] : []),
   };

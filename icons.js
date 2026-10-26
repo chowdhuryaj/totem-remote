@@ -1,5 +1,6 @@
 // Icons: Tabler Icons v3.45.0 (https://tabler.io/icons), outline set, MIT License, Copyright (c) 2020-2024 Pawel Kuna.
-// Vendored inner SVG markup (24x24, stroke 2). No runtime fetch. Rendered by icon(name).
+// Vendored inner SVG markup (24x24, stroke 2). No runtime fetch. Rendered by icon(name); a name from imported
+// JSON only selects one of these own keys (not __proto__, toString...), so nothing it holds reaches innerHTML.
 export const ICONS = {
   'player-play': '<path d="M7 4v16l13 -8l-13 -8" />',
   'player-pause': '<path d="M6 6a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1l0 -12" /> <path d="M14 6a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1l0 -12" />',
@@ -49,4 +50,4 @@ export const ICONS = {
   'clock': '<path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" /> <path d="M12 7v5l3 3" />',
 };
 export const ICON_NAMES = Object.keys(ICONS);
-export const icon = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] ?? ICONS.apps}</svg>`;
+export const icon = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${Object.hasOwn(ICONS, name) ? ICONS[name] : ICONS.apps}</svg>`;

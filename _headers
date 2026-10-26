@@ -1,0 +1,6 @@
+# Static host headers (Cloudflare Pages / Netlify format). frame-ancestors only works as a header.
+/*
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; manifest-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  Permissions-Policy: bluetooth=(self), camera=(), microphone=(), geolocation=()

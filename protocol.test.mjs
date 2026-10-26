@@ -94,3 +94,19 @@ test('workstation sample page is placeholder-only and icons exist', () => {
 });
 
 test('key writes cost 6 ring bytes', () => { assert.equal(P.KEY_COST, P.encodeKey({}).length); });
+
+test('imported icon names cannot pull inherited properties into innerHTML', async () => {
+  const { icon, ICONS } = await import('./icons.js');
+  for (const n of ['__proto__', 'constructor', 'toString', 'hasOwnProperty']) assert.equal(icon(n), icon('apps'));
+  assert.ok(icon('star').includes(ICONS.star));
+});
+
+test('imported config: no prototype pollution, key usages clamped to the dongle range', async () => {
+  const { importAny } = await import('./config.js');
+  const evil = JSON.parse('{"version":2,"__proto__":{"polluted":1},"profiles":{"Mac":{"__proto__":{"polluted":1},"pages":[{"name":"x","buttons":[{"label":"<img src=x onerror=alert(1)>","icon":"__proto__","steps":[{"t":"key","mods":1,"page":7,"usage":4096},{"t":"key","page":12,"usage":99999}]}]}]}}}');
+  const c = importAny(evil, null, 'Mac');
+  assert.equal({}.polluted, undefined);
+  assert.equal(Object.prototype.polluted, undefined);
+  const [k7, k12] = c.profiles.Mac.pages[0].buttons[0].steps;
+  assert.equal(k7.usage, 0xff); assert.equal(k12.usage, 0xfff);
+});

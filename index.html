@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<!-- Same policy as _headers, for hosts that cannot send headers. Everything is same-origin; icons are inline SVG. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; manifest-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="color-scheme" content="dark light">
 <meta name="theme-color" content="#0e0f12">
